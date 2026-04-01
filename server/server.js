@@ -18,16 +18,6 @@ app.use(express.static(path.join(__dirname, '../dist')));
 app.use('/record', express.static(RECORD_DIR));
 app.use('/live', express.static(LIVE_DIR));
 
-// Proxy for SRS Status to avoid mixed content
-app.get('/api/srs-streams', async (req, res) => {
-    try {
-        const response = await fetch('http://192.168.9.214:1985/api/v1/streams');
-        const data = await response.json();
-        res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: 'SRS API not reachable' });
-    }
-});
 const NAMES_FILE = path.join(RECORD_DIR, 'machine_names.json');
 
 // Get custom machine names
@@ -53,37 +43,56 @@ app.post('/api/machine-names', (req, res) => {
         res.status(500).json({ error: 'Failed to save names' });
     }
 });
-// Helper to scan directory for recordings
-// Pattern: /record/live/[machine-id]/[date]/[time].mp4
+
+// Proxy for SRS Status to avoid mixed content
+app.get('/api/srs-streams', async (req, res) => {
+    try {
+        const response = await fetch('http://192.168.9.214:1985/api/v1/streams');
+        const data = await response.json();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'SRS API not reachable' });
+    }
+});
+
+// Helper to scan for recordings (MP4 and HLS)
 app.get('/api/recordings/:machineId', (req, res) => {
     const { machineId } = req.params;
-    const machinePath = path.join(RECORD_DIR, 'live', machineId);
+    const machinePathMp4 = path.join(RECORD_DIR, 'live', machineId);
+    const machinePathHls = path.join(RECORD_DIR, 'live_hls', 'live', machineId);
 
-    if (!fs.existsSync(machinePath)) {
+    // Get all dates from MP4 directory as source of truth for "days with activity"
+    if (!fs.existsSync(machinePathMp4)) {
         return res.json([]);
     }
 
     try {
-        const dates = fs.readdirSync(machinePath).filter(d => fs.statSync(path.join(machinePath, d)).isDirectory());
+        const dates = fs.readdirSync(machinePathMp4).filter(d => fs.statSync(path.join(machinePathMp4, d)).isDirectory());
         const recordings = dates.map(date => {
-            const datePath = path.join(machinePath, date);
-            const files = fs.readdirSync(datePath)
+            const datePathMp4 = path.join(machinePathMp4, date);
+            const mp4Files = fs.readdirSync(datePathMp4)
                 .filter(f => f.endsWith('.mp4'))
-                .sort(); // Chronological (ascending)
+                .sort();
             
-            const playlist = files.map(f => `/record/live/${machineId}/${date}/${f}`);
+            const playlistMp4 = mp4Files.map(f => `/record/live/${machineId}/${date}/${f}`);
+            
+            // Check if daily HLS playlist exists for this date
+            const hlsFile = path.join(machinePathHls, `${date}.m3u8`);
+            const hasHls = fs.existsSync(hlsFile);
             
             return {
                 id: date,
                 date,
-                title: `Toàn bộ video ngày ${date}`,
+                title: `Video cả ngày ${date}`,
                 time: `Sáng - Tối`,
-                url: playlist[0] || '', // Start with first part
-                playlist: playlist
+                // Prefer the HLS playlist for a single-timeline experience
+                url: hasHls ? `/record/live_hls/live/${machineId}/${date}.m3u8` : playlistMp4[0],
+                playlist: playlistMp4,
+                hasHls: hasHls
             };
-        }).filter(r => r.playlist.length > 0);
+        }).filter(r => r.playlist.length > 0 || r.hasHls);
 
-        res.json(recordings.sort((a,b) => b.date.localeCompare(a.date))); // Newest date first
+        res.json(recordings.sort((a,b) => b.date.localeCompare(a.date)));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to scan recordings' });
