@@ -58,23 +58,23 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (selectedMachine) {
-      // In archives tab, we might want to start with the first recording if available
-      // but for now let's just initialize the view
-      if (mainTab === 'live') {
-        setActiveVideoUrl(`${SRS_BASE_URL}/live/${selectedMachine.id}.m3u8`);
-        setCurrentView('live');
-      } else {
-        setActiveVideoUrl(null); // Wait for recording selection
-        setCurrentView('recording');
-      }
+    if (selectedMachine && mainTab === 'archives') {
+      setActiveVideoUrl(null); // Wait for recording selection
+      setCurrentView('recording');
       
       fetch(`${API_BASE}/api/recordings/${selectedMachine.id}`)
-        .then(res => res.json())
+        .then(async res => {
+          const contentType = res.headers.get("content-type");
+          if (res.ok && contentType && contentType.indexOf("application/json") !== -1) {
+            return res.json();
+          } else {
+            throw new Error('API request failed or returned non-JSON data');
+          }
+        })
         .then(data => {
           setRecordings(data);
-          // If we are in archives mode and have recordings, pick the latest one
-          if (mainTab === 'archives' && data.length > 0 && data[0].items.length > 0) {
+          // Auto-select the latest recording if available
+          if (data.length > 0 && data[0].items.length > 0) {
             handleRecordingClick(data[0].items[0]);
           }
         })
@@ -103,7 +103,7 @@ function App() {
             <Video size={20} />
             <span>Xem trực tiếp</span>
           </div>
-          <div className={`nav-item ${mainTab === 'archives' ? 'active' : ''}`} onClick={() => { setMainTab('archives'); }}>
+          <div className={`nav-item ${mainTab === 'archives' ? 'active' : ''}`} onClick={() => { setMainTab('archives'); setSelectedMachine(null); }}>
             <Calendar size={20} />
             <span>Xem lại theo ngày</span>
           </div>
@@ -117,12 +117,13 @@ function App() {
       </aside>
 
       <main className="main-content">
-        {!selectedMachine ? (
+        {mainTab === 'live' ? (
+          /* ===== LIVE DASHBOARD: 4x2 Grid with live players ===== */
           <div className="fade-in">
             <header className="header">
               <div className="title-group">
                 <h1>BPGROUP AOE Tournament</h1>
-                <p>Hệ thống giám sát và xem lại giải đấu nội bộ Bestprice</p>
+                <p>Hệ thống giám sát trực tiếp giải đấu nội bộ Bestprice</p>
               </div>
               <div className="stats-bar">
                 <div className="stat-chip">
@@ -132,7 +133,55 @@ function App() {
               </div>
             </header>
 
-            <div className="machine-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))' }}>
+            <div className="live-grid">
+              {INITIAL_MACHINES.map((machine) => {
+                const isOnline = onlineStreams.includes(machine.id);
+                return (
+                  <div key={machine.id} className="live-cell">
+                    <div className="live-cell-header">
+                      <div className="machine-name">
+                        <Monitor size={14} />
+                        <span>{machine.id.toUpperCase()}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className={`team-badge ${machine.team}`}>
+                          {machine.team === 'team1' ? 'Team 1' : 'Team 2'}
+                        </span>
+                        <span className="stat-dot" style={{ backgroundColor: isOnline ? '#ef4444' : '#94a3b8', width: 6, height: 6 }}></span>
+                      </div>
+                    </div>
+                    <div className="live-cell-video">
+                      {isOnline ? (
+                        <VideoPlayer
+                          key={`live-${machine.id}`}
+                          src={`${SRS_BASE_URL}/live/${machine.id}.m3u8`}
+                          muted={true}
+                          controls={false}
+                          autoplay={true}
+                        />
+                      ) : (
+                        <div className="live-cell-offline">
+                          <Tv size={36} opacity={0.2} strokeWidth={1} />
+                          <span>OFFLINE</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : !selectedMachine ? (
+          /* ===== ARCHIVES: Machine selection grid ===== */
+          <div className="fade-in">
+            <header className="header">
+              <div className="title-group">
+                <h1>Xem lại theo ngày</h1>
+                <p>Chọn máy để xem danh sách bản ghi hình</p>
+              </div>
+            </header>
+
+            <div className="machine-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
               {INITIAL_MACHINES.map((machine) => {
                 const isOnline = onlineStreams.includes(machine.id);
                 return (
@@ -152,27 +201,11 @@ function App() {
                     </div>
                     <div className="card-preview">
                       <div style={{ textAlign: 'center', color: isOnline ? 'var(--accent-color)' : '#475569' }}>
-                        {isOnline ? (
-                          <Video size={56} strokeWidth={1} style={{ opacity: 0.8 }} />
-                        ) : (
-                          <Tv size={56} opacity={0.3} strokeWidth={1} />
-                        )}
-                        <div style={{ fontSize: '0.8rem', marginTop: '1rem', fontWeight: 600, letterSpacing: '1px' }}>
-                          {isOnline ? 'SẴN SÀNG' : 'CHƯA CÓ LUỒNG'}
+                        <History size={48} strokeWidth={1} style={{ opacity: 0.5 }} />
+                        <div style={{ fontSize: '0.8rem', marginTop: '0.75rem', fontWeight: 600, letterSpacing: '1px' }}>
+                          XEM LẠI
                         </div>
                       </div>
-
-                      <div className="overlay-status">
-                        <span className="stat-dot" style={{ backgroundColor: isOnline ? '#ef4444' : '#94a3b8' }}></span>
-                        <span className={isOnline ? 'live-tag' : ''}>
-                          {isOnline ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                      </div>
-                      {isOnline && (
-                        <div className="play-icon">
-                          <Play size={40} fill="currentColor" />
-                        </div>
-                      )}
                     </div>
                     <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{machine.name}</span>
@@ -184,12 +217,13 @@ function App() {
             </div>
           </div>
         ) : (
+          /* ===== ARCHIVES: Player view with recording list ===== */
           <div className="fade-in">
             <button
               onClick={() => setSelectedMachine(null)}
               style={{ background: 'none', border: 'none', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', cursor: 'pointer' }}
             >
-              <ArrowLeft size={18} /> Quay lại Dashboard
+              <ArrowLeft size={18} /> Quay lại danh sách máy
             </button>
 
             <div className="player-view" style={{ gridTemplateColumns: '1fr 350px' }}>
@@ -200,22 +234,14 @@ function App() {
                   ) : (
                     <div style={{ padding: '4rem', textAlign: 'center', color: '#94a3b8' }}>
                       <Monitor size={48} style={{ marginBottom: '1rem', opacity: 0.2 }} />
-                      <p>{mainTab === 'archives' ? 'Hãy chọn một bản ghi từ danh sách bên phải' : 'Chưa có nguồn video'}</p>
-                    </div>
-                  )}
-                  {activeVideoUrl && currentView === 'live' && (
-                    <div style={{ position: 'absolute', top: '1.5rem', left: '1.5rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
-                      <span style={{ background: onlineStreams.includes(selectedMachine.id) ? '#ef4444' : '#64748b', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
-                        {onlineStreams.includes(selectedMachine.id) ? 'LIVE' : 'STANDBY'}
-                      </span>
-                      <span style={{ background: 'rgba(0,0,0,0.6)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', backdropFilter: 'blur(4px)' }}>{selectedMachine.id}</span>
+                      <p>Hãy chọn một bản ghi từ danh sách bên phải</p>
                     </div>
                   )}
                 </div>
 
                 <div style={{ marginTop: '1.5rem', background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '20px', border: '1px solid var(--panel-border)' }}>
                   <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-                    {currentView === 'live' ? `Đang xem: ${selectedMachine.id}` : 'Đang xem lại video'}
+                    {activeVideoUrl ? `Đang xem lại: ${selectedMachine.id}` : `Bản ghi: ${selectedMachine.id}`}
                   </h2>
                   <div style={{ display: 'flex', gap: '1.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -236,19 +262,12 @@ function App() {
                   </h3>
                 </div>
                 <div className="history-list">
-                  <div className="video-item" onClick={() => {
-                    setCurrentView('live');
-                    setActiveVideoUrl(`${SRS_BASE_URL}/live/${selectedMachine.id}.m3u8`);
-                  }}
-                    style={{ fontWeight: currentView === 'live' ? 'bold' : 'normal', borderLeft: currentView === 'live' ? '3px solid #ef4444' : 'none' }}>
-                    <div className="video-thumb" style={{ background: '#450a0a' }}>
-                      <div className="stat-dot" style={{ backgroundColor: '#ef4444' }}></div>
+                  {recordings.length === 0 && (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                      <History size={32} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
+                      <p>Chưa có bản ghi nào</p>
                     </div>
-                    <div className="video-info">
-                      <h4>XEM TRỰC TIẾP</h4>
-                      <span>{onlineStreams.includes(selectedMachine.id) ? 'Đang diễn ra' : 'Đang chờ luồng...'}</span>
-                    </div>
-                  </div>
+                  )}
 
                   {recordings.map((group) => (
                     <div key={group.date} className="date-group">
