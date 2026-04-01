@@ -16,46 +16,73 @@ const LIVE_DIR = process.env.LIVE_DIR || '/usr/local/srs/objs/nginx/html/live';
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../dist')));
+// Serve a trimmed live m3u8 (last N segments only) so hls.js plays near real-time
+app.get('/api/live-m3u8/:app/:stream', (req, res) => {
+    const { app: appName, stream } = req.params;
+    const today = new Date().toISOString().split('T')[0];
+    const m3u8Path = path.join(RECORD_DIR, 'live', appName, stream, today, 'index.m3u8');
 
-// Proxy HTTP-FLV from SRS (port 8080) for live streams
-const SRS_HOST = process.env.SRS_HOST || '192.168.9.214';
-const SRS_HTTP_PORT = process.env.SRS_HTTP_PORT || '8080';
+    if (!fs.existsSync(m3u8Path)) {
+        return res.status(404).send('Stream not found');
+    }
 
-app.get('/api/flv/:streamId', (req, res) => {
-    const { streamId } = req.params;
-    const srsUrl = `http://${SRS_HOST}:${SRS_HTTP_PORT}/live/${streamId}.flv`;
+    const content = fs.readFileSync(m3u8Path, 'utf8');
+    const lines = content.split('\n');
 
-    const proxyReq = http.get(srsUrl, (proxyRes) => {
-        if (proxyRes.statusCode !== 200) {
-            console.error(`SRS returned ${proxyRes.statusCode} for ${streamId}`);
-            if (!res.headersSent) {
-                res.status(proxyRes.statusCode).end();
-            }
-            return;
+    // Extract header lines and segment pairs (EXTINF + .ts)
+    const headerLines = [];
+    const segments = [];
+    let i = 0;
+
+    // Collect header lines (everything before first EXTINF)
+    while (i < lines.length && !lines[i].startsWith('#EXTINF')) {
+        const line = lines[i].trim();
+        // Skip ENDLIST if present, and skip MEDIA-SEQUENCE (we'll recalculate)
+        if (line && !line.startsWith('#EXT-X-ENDLIST') && !line.startsWith('#EXT-X-MEDIA-SEQUENCE')) {
+            headerLines.push(line);
         }
+        i++;
+    }
 
-        // Copy headers from SRS
-        res.setHeader('Content-Type', 'video/x-flv');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-        
-        if (proxyRes.headers['transfer-encoding']) {
-            res.setHeader('Transfer-Encoding', proxyRes.headers['transfer-encoding']);
+    // Collect segment groups (may include DISCONTINUITY markers)
+    let currentGroup = [];
+    while (i < lines.length) {
+        const line = lines[i].trim();
+        if (line.startsWith('#EXT-X-ENDLIST')) {
+            i++;
+            continue;
         }
-
-        proxyRes.pipe(res);
-    });
-
-    proxyReq.on('error', (err) => {
-        console.error(`FLV proxy error for ${streamId}:`, err.message);
-        if (!res.headersSent) {
-            res.status(502).send('Bad Gateway');
+        if (line.startsWith('#EXTINF')) {
+            currentGroup = [line];
+        } else if (line && !line.startsWith('#') && currentGroup.length > 0) {
+            currentGroup.push(line);
+            segments.push(currentGroup);
+            currentGroup = [];
+        } else if (line.startsWith('#EXT-X-DISCONTINUITY')) {
+            // Attach discontinuity to next segment
+            currentGroup = [line];
+        } else if (line && currentGroup.length > 0) {
+            currentGroup.push(line);
         }
-    });
+        i++;
+    }
 
-    req.on('close', () => {
-        proxyReq.destroy();
-    });
+    // Take only the last 6 segments for live edge
+    const LIVE_SEGMENTS = 6;
+    const recentSegments = segments.slice(-LIVE_SEGMENTS);
+    const mediaSequence = Math.max(0, segments.length - LIVE_SEGMENTS);
+
+    // Build trimmed playlist
+    const output = [
+        ...headerLines,
+        `#EXT-X-MEDIA-SEQUENCE:${mediaSequence}`,
+        ...recentSegments.flat(),
+        '' // trailing newline
+    ].join('\n');
+
+    res.type('application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.send(output);
 });
 
 // Intercept M3U8 for playback to ensure it acts like a VOD (allows scrubbing, shows duration)
