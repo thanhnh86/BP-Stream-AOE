@@ -83,34 +83,13 @@ app.get('/api/recordings/:machineId', (req, res) => {
             const entryPath = path.join(rootPath, entry);
             const stats = fs.statSync(entryPath);
 
-            // Case 1: Entry is a Date folder containing MP4s (legacy or ongoing recording)
+            // New HLS recording logic: look inside YYYY-MM-DD folder for index.m3u8
             if (stats.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(entry)) {
                 const date = entry;
-                const files = fs.readdirSync(entryPath)
-                    .filter(f => f.endsWith('.mp4'))
-                    .sort()
-                    .map(f => {
-                        // Resolve the relative URL for the web server
-                        const relPath = path.relative(RECORD_DIR, path.join(entryPath, f));
-                        return `/record/${relPath}`;
-                    });
-
-                if (files.length > 0) {
-                    recordingsMap[date] = {
-                        id: date,
-                        date: date,
-                        title: `Video toàn ngày ${date}`,
-                        url: files[0],
-                        playlist: files
-                    };
-                }
-            }
-            
-            // Case 2: Entry is a .m3u8 playlist named by date (new HLS DVR)
-            if (stats.isFile() && entry.endsWith('.m3u8')) {
-                const date = entry.replace('.m3u8', '');
-                if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-                    const relPath = path.relative(RECORD_DIR, entryPath);
+                const m3u8Path = path.join(entryPath, 'index.m3u8');
+                
+                if (fs.existsSync(m3u8Path)) {
+                    const relPath = path.relative(RECORD_DIR, m3u8Path);
                     recordingsMap[date] = {
                         id: date,
                         date: date,
@@ -118,6 +97,25 @@ app.get('/api/recordings/:machineId', (req, res) => {
                         url: `/record/${relPath}`,
                         playlist: [] 
                     };
+                } else {
+                    // Fallback to legacy MP4 scanning
+                    const files = fs.readdirSync(entryPath)
+                        .filter(f => f.endsWith('.mp4'))
+                        .sort()
+                        .map(f => {
+                            const relPath = path.relative(RECORD_DIR, path.join(entryPath, f));
+                            return `/record/${relPath}`;
+                        });
+
+                    if (files.length > 0) {
+                        recordingsMap[date] = {
+                            id: date,
+                            date: date,
+                            title: `Video toàn ngày ${date}`,
+                            url: files[0],
+                            playlist: files
+                        };
+                    }
                 }
             }
         });
