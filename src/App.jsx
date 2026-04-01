@@ -29,9 +29,8 @@ const API_BASE = window.location.origin;
 
 function App() {
   const [selectedMachine, setSelectedMachine] = useState(null);
-  const [currentView, setCurrentView] = useState('live'); // 'live' or 'recording'
   const [mainTab, setMainTab] = useState('live'); // 'live' or 'archives'
-  const [activeVideoUrl, setActiveVideoUrl] = useState(null);
+  const [activeRecording, setActiveRecording] = useState(null);
   const [recordings, setRecordings] = useState([]);
   const [onlineStreams, setOnlineStreams] = useState([]);
 
@@ -118,7 +117,6 @@ function App() {
         })
         .catch(err => {
           console.warn('SRS API not reachable, using mock online status for demo');
-          // Fallback demo: team1-1 and team2-3 are online
           setOnlineStreams(['team1-1', 'team2-3']);
         });
     };
@@ -130,32 +128,21 @@ function App() {
 
   useEffect(() => {
     if (selectedMachine && mainTab === 'archives') {
-      setActiveVideoUrl(null); // Wait for recording selection
-      setCurrentView('recording');
-      
+      setActiveRecording(null);
       fetch(`${API_BASE}/api/recordings/${selectedMachine.id}`)
-        .then(async res => {
-          const contentType = res.headers.get("content-type");
-          if (res.ok && contentType && contentType.indexOf("application/json") !== -1) {
-            return res.json();
-          } else {
-            throw new Error('API request failed or returned non-JSON data');
-          }
-        })
+        .then(res => res.json())
         .then(data => {
           setRecordings(data);
-          // Auto-select the latest recording if available
-          if (data.length > 0 && data[0].items.length > 0) {
-            handleRecordingClick(data[0].items[0]);
+          if (data.length > 0) {
+            handleRecordingClick(data[0]);
           }
         })
         .catch(err => console.error('Error fetching recordings:', err));
     }
   }, [selectedMachine, mainTab]);
 
-  const handleRecordingClick = (video) => {
-    setCurrentView('recording');
-    setActiveVideoUrl(video.url);
+  const handleRecordingClick = (recording) => {
+    setActiveRecording(recording);
   };
 
   return (
@@ -189,7 +176,6 @@ function App() {
 
       <main className="main-content">
         {mainTab === 'live' ? (
-          /* ===== LIVE DASHBOARD: 4x2 Grid with live players ===== */
           <div className="fade-in">
             <header className="header">
               <div className="title-group">
@@ -240,7 +226,6 @@ function App() {
             </div>
           </div>
         ) : !selectedMachine ? (
-          /* ===== ARCHIVES: Machine selection grid ===== */
           <div className="fade-in">
             <header className="header">
               <div className="title-group">
@@ -253,11 +238,7 @@ function App() {
               {INITIAL_MACHINES.map((machine) => {
                 const isOnline = onlineStreams.includes(machine.id);
                 return (
-                  <div
-                    key={machine.id}
-                    className="machine-card"
-                    onClick={() => setSelectedMachine(machine)}
-                  >
+                  <div key={machine.id} className="machine-card" onClick={() => setSelectedMachine(machine)}>
                     <div className="card-header">
                       {renderMachineName(machine.id, 18)}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -270,9 +251,7 @@ function App() {
                     <div className="card-preview">
                       <div style={{ textAlign: 'center', color: isOnline ? 'var(--accent-color)' : '#475569' }}>
                         <History size={48} strokeWidth={1} style={{ opacity: 0.5 }} />
-                        <div style={{ fontSize: '0.8rem', marginTop: '0.75rem', fontWeight: 600, letterSpacing: '1px' }}>
-                          XEM LẠI
-                        </div>
+                        <div style={{ fontSize: '0.8rem', marginTop: '0.75rem', fontWeight: 600, letterSpacing: '1px' }}>XEM LẠI</div>
                       </div>
                     </div>
                     <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -285,7 +264,6 @@ function App() {
             </div>
           </div>
         ) : (
-          /* ===== ARCHIVES: Player view with recording list ===== */
           <div className="fade-in">
             <button
               onClick={() => setSelectedMachine(null)}
@@ -297,12 +275,16 @@ function App() {
             <div className="player-view" style={{ gridTemplateColumns: '1fr 350px' }}>
               <div className="video-section">
                 <div className="video-container" style={{ position: 'relative', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
-                  {activeVideoUrl ? (
-                    <VideoPlayer key={activeVideoUrl} src={activeVideoUrl} />
+                  {activeRecording ? (
+                    <VideoPlayer 
+                      key={activeRecording.id} 
+                      src={activeRecording.url} 
+                      playlist={activeRecording.playlist}
+                    />
                   ) : (
                     <div style={{ padding: '4rem', textAlign: 'center', color: '#94a3b8' }}>
                       <Monitor size={48} style={{ marginBottom: '1rem', opacity: 0.2 }} />
-                      <p>Hãy chọn một bản ghi từ danh sách bên phải</p>
+                      <p>Hãy chọn ngày bản ghi muốn xem</p>
                     </div>
                   )}
                 </div>
@@ -321,7 +303,7 @@ function App() {
                       <User size={16} /> Bestprice IT Tournament
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Trophy size={16} /> BPGROUP Series
+                      <History size={16} /> {activeRecording ? `Phát toàn bộ: ${activeRecording.date}` : 'Lịch sử ghi hình'}
                     </span>
                   </div>
                 </div>
@@ -331,7 +313,7 @@ function App() {
                 <div className="history-header">
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                     <History size={20} color="var(--accent-color)" />
-                    Danh sách ghi hình
+                    Ghi hình theo ngày
                   </h3>
                 </div>
                 <div className="history-list">
@@ -342,29 +324,22 @@ function App() {
                     </div>
                   )}
 
-                  {recordings.map((group) => (
-                    <div key={group.date} className="date-group">
-                      <div className="date-label">
-                        <Calendar size={14} /> {group.date}
+                  {recordings.map((recording) => (
+                    <div
+                      key={recording.id}
+                      className="video-item"
+                      onClick={() => handleRecordingClick(recording)}
+                      style={{ borderLeft: activeRecording?.id === recording.id ? '3px solid var(--accent-color)' : 'none' }}
+                    >
+                      <div className="video-thumb">
+                        <Calendar size={16} />
                       </div>
-                      {group.items.map((video) => (
-                        <div
-                          key={video.id}
-                          className="video-item"
-                          onClick={() => handleRecordingClick(video)}
-                          style={{ borderLeft: activeVideoUrl === video.url ? '3px solid var(--accent-color)' : 'none' }}
-                        >
-                          <div className="video-thumb">
-                            <Play size={16} />
-                          </div>
-                          <div className="video-info">
-                            <h4>{video.title}</h4>
-                            <span style={{ display: 'flex', gap: '0.8rem' }}>
-                              <Clock size={12} style={{ marginTop: '2px' }} /> {video.time}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                      <div className="video-info">
+                        <h4>Ngày {recording.date}</h4>
+                        <span style={{ display: 'flex', gap: '0.8rem' }}>
+                          <Play size={12} style={{ marginTop: '2px' }} /> {recording.playlist.length} phần ghi hình
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>

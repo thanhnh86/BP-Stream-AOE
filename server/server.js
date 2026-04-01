@@ -69,21 +69,21 @@ app.get('/api/recordings/:machineId', (req, res) => {
             const datePath = path.join(machinePath, date);
             const files = fs.readdirSync(datePath)
                 .filter(f => f.endsWith('.mp4'))
-                .map(f => ({
-                    id: `${date}-${f}`,
-                    title: `Video recording ${f}`,
-                    time: f.replace('.mp4', ''),
-                    duration: '5:00', // DVR segment duration
-                    url: `/record/live/${machineId}/${date}/${f}`
-                }));
+                .sort(); // Chronological (ascending)
+            
+            const playlist = files.map(f => `/record/live/${machineId}/${date}/${f}`);
             
             return {
+                id: date,
                 date,
-                items: files.sort((a,b) => b.time.localeCompare(a.time))
+                title: `Toàn bộ video ngày ${date}`,
+                time: `Sáng - Tối`,
+                url: playlist[0] || '', // Start with first part
+                playlist: playlist
             };
-        });
+        }).filter(r => r.playlist.length > 0);
 
-        res.json(recordings.sort((a,b) => b.date.localeCompare(a.date)));
+        res.json(recordings.sort((a,b) => b.date.localeCompare(a.date))); // Newest date first
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to scan recordings' });
