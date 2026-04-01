@@ -73,10 +73,18 @@ app.get('/api/live-m3u8/:app/:stream', (req, res) => {
     const mediaSequence = Math.max(0, segments.length - LIVE_SEGMENTS);
 
     // Build trimmed playlist
+    // IMPORTANT: rewrite .ts paths to be absolute /record/... paths so browser can find them
+    const segmentsOutput = recentSegments.flat().map(line => {
+        if (line && !line.startsWith('#')) {
+            return `/record/live/${appName}/${stream}/${today}/${line}`;
+        }
+        return line;
+    });
+
     const output = [
         ...headerLines,
         `#EXT-X-MEDIA-SEQUENCE:${mediaSequence}`,
-        ...recentSegments.flat(),
+        ...segmentsOutput,
         '' // trailing newline
     ].join('\n');
 
@@ -97,8 +105,24 @@ app.use('/record', (req, res, next) => {
             if (!content.includes('#EXT-X-ENDLIST')) {
                 content += '\n#EXT-X-ENDLIST\n';
             }
+
+            // Rewrite segment paths for VOD to be absolute
+            const parts = req.path.split('/');
+            const appName = parts[1]; // /live/live/machine/date/index.m3u8 -> parts[0] is empty, parts[1] is 'live'
+            const stream = parts[2];
+            const dateDir = parts[3];
+
+            const rewrittenContent = content.split('\n').map(line => {
+                if (line && !line.startsWith('#')) {
+                    // Check if the path already starts with /record
+                    if (line.startsWith('/record')) return line;
+                    return `/record/live/${appName}/${stream}/${dateDir}/${line}`;
+                }
+                return line;
+            }).join('\n');
+
             res.type('application/vnd.apple.mpegurl');
-            return res.send(content);
+            return res.send(rewrittenContent);
         }
     }
     next();
