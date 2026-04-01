@@ -26,7 +26,7 @@ services:
     environment:
       - RECORD_DIR=/usr/local/srs/objs/nginx/html/record
       - LIVE_DIR=/usr/local/srs/objs/nginx/html/live
-      - SRS_HOST=srs_aoe
+      - SRS_HOST=srs
       - SRS_HTTP_PORT=8080
     depends_on:
       - srs

@@ -12,6 +12,7 @@ This skill provides standard operating procedures for managing the `bp-stream-ao
 - **Host IP:** 192.168.9.214
 - **SSH Username:** `test`
 - **SSH Password:** `123456`
+- **URL:** `aoe.bpg.vn`
 - **Authentication Method:** Use `sshpass` or `expect` scripts if running non-interactive SSH commands. For example:
   ```bash
   expect -c 'spawn ssh -o StrictHostKeyChecking=no test@192.168.9.214 "echo 123456 | sudo -S docker ps -a"; expect "*?assword:*"; send "123456\r"; expect eof'

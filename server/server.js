@@ -146,7 +146,8 @@ app.post('/api/machine-names', (req, res) => {
 // Proxy for SRS Status to avoid mixed content
 app.get('/api/srs-streams', async (req, res) => {
     try {
-        const response = await fetch('http://srs_aoe:1985/api/v1/streams');
+        const srsHost = process.env.SRS_HOST || 'srs';
+        const response = await fetch(`http://${srsHost}:1985/api/v1/streams/`);
         const data = await response.json();
         res.json(data);
     } catch (err) {
