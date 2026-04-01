@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import cors from 'cors';
+import http from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +16,35 @@ const LIVE_DIR = process.env.LIVE_DIR || '/usr/local/srs/objs/nginx/html/live';
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../dist')));
+
+// Proxy HTTP-FLV from SRS (port 8080) for live streams
+const SRS_HOST = process.env.SRS_HOST || '192.168.9.214';
+const SRS_HTTP_PORT = process.env.SRS_HTTP_PORT || '8080';
+
+app.get('/api/flv/:streamId', (req, res) => {
+    const { streamId } = req.params;
+    const srsUrl = `http://${SRS_HOST}:${SRS_HTTP_PORT}/live/${streamId}.flv`;
+
+    res.setHeader('Content-Type', 'video/x-flv');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const proxyReq = http.get(srsUrl, (proxyRes) => {
+        proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', (err) => {
+        console.error(`FLV proxy error for ${streamId}:`, err.message);
+        if (!res.headersSent) {
+            res.status(502).json({ error: 'Stream not available' });
+        }
+    });
+
+    req.on('close', () => {
+        proxyReq.destroy();
+    });
+});
 
 // Intercept M3U8 for playback to ensure it acts like a VOD (allows scrubbing, shows duration)
 app.use('/record', (req, res, next) => {

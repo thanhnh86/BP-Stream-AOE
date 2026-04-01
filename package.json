@@ -16,10 +16,11 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "framer-motion": "^12.38.0",
+    "hls.js": "^1.6.15",
     "lucide-react": "^1.7.0",
+    "mpegts.js": "^1.8.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "video.js": "^8.23.7"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

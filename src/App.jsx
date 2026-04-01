@@ -212,7 +212,8 @@ function App() {
                       {isOnline ? (
                         <VideoPlayer
                           key={`live-${machine.id}`}
-                          src={`${SRS_BASE_URL}/record/live/live/${machine.id}/${new Date().toISOString().split('T')[0]}/index.m3u8`}
+                          src={`${SRS_BASE_URL}/api/flv/${machine.id}`}
+                          mode="live"
                           muted={true}
                           controls={true}
                           autoplay={true}
@@ -282,8 +283,8 @@ function App() {
                   {activeRecording ? (
                     <VideoPlayer 
                       key={activeRecording.id} 
-                      src={activeRecording.url} 
-                      playlist={activeRecording.playlist}
+                      src={activeRecording.url}
+                      mode="vod"
                     />
                   ) : (
                     <div style={{ padding: '4rem', textAlign: 'center', color: '#94a3b8' }}>

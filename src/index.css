@@ -1,7 +1,7 @@
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/outfit/700.css";
-@import "video.js/dist/video-js.css";
+
 
 :root {
   --bg-color: #0b0e14;
@@ -202,10 +202,7 @@ h1, h2, h3, .brand {
   justify-content: center;
 }
 
-.live-cell-video .video-js {
-  width: 100% !important;
-  height: 100% !important;
-}
+
 
 .live-cell-offline {
   display: flex;
@@ -417,25 +414,15 @@ h1, h2, h3, .brand {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Custom VideoJS Skinning */
-.video-js {
+/* Custom Video Skinning */
+video {
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
-.vjs-big-play-button {
-  background-color: var(--accent-color) !important;
-  border-color: var(--accent-color) !important;
-  border-radius: 50% !important;
-  width: 60px !important;
-  height: 60px !important;
-  line-height: 60px !important;
-  margin-left: -30px !important;
-  margin-top: -30px !important;
-}
-
-.vjs-control-bar {
-  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent) !important;
+video::-webkit-media-controls-panel {
+  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
 }
 
 /* Responsive */
