@@ -1,0 +1,35 @@
+services:
+  srs:
+    image: ossrs/srs:latest
+    container_name: srs-server
+    ports:
+      - "1935:1935"
+      - "1985:1985"
+      - "8080:8080"
+    volumes:
+      - ./srs.conf:/usr/local/srs/conf/srs.conf
+      - srs_data:/usr/local/srs/objs/nginx/html/dvr
+    restart: always
+
+  worker:
+    build: ./worker
+    container_name: srs-worker
+    volumes:
+      - srs_data:/data
+    environment:
+      - DATA_DIR=/data
+    restart: always
+
+  dashboard:
+    build: ./web
+    container_name: srs-dashboard
+    ports:
+      - "80:80"
+    volumes:
+      - srs_data:/data
+    depends_on:
+      - srs
+    restart: always
+
+volumes:
+  srs_data:
