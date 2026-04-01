@@ -18,6 +18,7 @@ import {
 import { VideoPlayer } from './components/VideoPlayer';
 
 const SRS_BASE_URL = window.location.origin;
+const SRS_FLV_BASE = `${window.location.protocol}//${window.location.hostname}:8080`;
 const SRS_API_URL = '/api/srs-streams';
 
 const INITIAL_MACHINES = [
@@ -212,7 +213,7 @@ function App() {
                       {isOnline ? (
                         <VideoPlayer
                           key={`live-${machine.id}`}
-                          src={`${SRS_BASE_URL}/api/flv/${machine.id}`}
+                          src={`${SRS_FLV_BASE}/live/${machine.id}.flv`}
                           mode="live"
                           muted={true}
                           controls={true}
