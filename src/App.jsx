@@ -87,172 +87,6 @@ function App() {
     setActiveVideoUrl(video.url);
   };
 
-  const Dashboard = () => (
-    <div className="fade-in">
-      <header className="header">
-        <div className="title-group">
-          <h1>BPGROUP AOE Tournament</h1>
-          <p>Hệ thống giám sát và xem lại giải đấu nội bộ Bestprice</p>
-        </div>
-        <div className="stats-bar">
-          <div className="stat-chip">
-            <span className="stat-dot"></span>
-            <span>{onlineStreams.length} / 8 Đang Trực Tiếp</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="machine-grid">
-        {INITIAL_MACHINES.map((machine) => {
-          const isOnline = onlineStreams.includes(machine.id);
-          return (
-            <div
-              key={machine.id}
-              className="machine-card"
-              onClick={() => setSelectedMachine(machine)}
-            >
-              <div className="card-header">
-                <div className="machine-name">
-                  <Monitor size={18} />
-                  <span>{machine.id.toUpperCase()}</span>
-                </div>
-                <span className={`team-badge ${machine.team}`}>
-                  {machine.team === 'team1' ? 'Team 1' : 'Team 2'}
-                </span>
-              </div>
-              <div className="card-preview">
-                {isOnline ? (
-                  <img
-                    src={`${SRS_BASE_URL}/live/${machine.id}.png?t=${Date.now()}`}
-                    alt="Thumbnail"
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <Tv size={48} opacity={0.1} strokeWidth={1} />
-                )}
-
-                <div className="overlay-status">
-                  <span className="stat-dot" style={{ backgroundColor: isOnline ? '#ef4444' : '#94a3b8' }}></span>
-                  <span className={isOnline ? 'live-tag' : ''}>
-                    {isOnline ? 'ONLINE' : 'OFFLINE'}
-                  </span>
-                </div>
-                {isOnline && (
-                  <div className="play-icon">
-                    <Play size={40} fill="currentColor" />
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{machine.name}</span>
-                <ChevronRight size={16} color="#94a3b8" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const PlayerView = () => (
-    <div className="fade-in">
-      <button
-        onClick={() => setSelectedMachine(null)}
-        style={{ background: 'none', border: 'none', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', cursor: 'pointer' }}
-      >
-        <ArrowLeft size={18} /> Quay lại Dashboard
-      </button>
-
-      <div className="player-view" style={{ gridTemplateColumns: '1fr 350px' }}>
-        <div className="video-section">
-          <div className="video-container" style={{ position: 'relative', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
-            {activeVideoUrl ? (
-              <VideoPlayer key={activeVideoUrl} src={activeVideoUrl} />
-            ) : (
-              <div style={{ padding: '4rem', textAlign: 'center', color: '#94a3b8' }}>
-                <Monitor size={48} style={{ marginBottom: '1rem', opacity: 0.2 }} />
-                <p>{mainTab === 'archives' ? 'Hãy chọn một bản ghi từ danh sách bên phải' : 'Chưa có nguồn video'}</p>
-              </div>
-            )}
-            {activeVideoUrl && currentView === 'live' && (
-              <div style={{ position: 'absolute', top: '1.5rem', left: '1.5rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
-                <span style={{ background: onlineStreams.includes(selectedMachine.id) ? '#ef4444' : '#64748b', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
-                  {onlineStreams.includes(selectedMachine.id) ? 'LIVE' : 'STANDBY'}
-                </span>
-                <span style={{ background: 'rgba(0,0,0,0.6)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', backdropFilter: 'blur(4px)' }}>{selectedMachine.id}</span>
-              </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: '1.5rem', background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '20px', border: '1px solid var(--panel-border)' }}>
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-              {currentView === 'live' ? `Đang xem: ${selectedMachine.id}` : 'Đang xem lại video'}
-            </h2>
-            <div style={{ display: 'flex', gap: '1.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <User size={16} /> Bestprice IT Tournament
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Trophy size={16} /> BPGROUP Series
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="history-panel">
-          <div className="history-header">
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <History size={20} color="var(--accent-color)" />
-              Danh sách ghi hình
-            </h3>
-          </div>
-          <div className="history-list">
-            <div className="video-item" onClick={() => {
-              setCurrentView('live');
-              setActiveVideoUrl(`${SRS_BASE_URL}/live/${selectedMachine.id}.m3u8`);
-            }}
-              style={{ fontWeight: currentView === 'live' ? 'bold' : 'normal', borderLeft: currentView === 'live' ? '3px solid #ef4444' : 'none' }}>
-              <div className="video-thumb" style={{ background: '#450a0a' }}>
-                <div className="stat-dot" style={{ backgroundColor: '#ef4444' }}></div>
-              </div>
-              <div className="video-info">
-                <h4>XEM TRỰC TIẾP</h4>
-                <span>{onlineStreams.includes(selectedMachine.id) ? 'Đang diễn ra' : 'Đang chờ luồng...'}</span>
-              </div>
-            </div>
-
-            {recordings.map((group) => (
-              <div key={group.date} className="date-group">
-                <div className="date-label">
-                  <Calendar size={14} /> {group.date}
-                </div>
-                {group.items.map((video) => (
-                  <div
-                    key={video.id}
-                    className="video-item"
-                    onClick={() => handleRecordingClick(video)}
-                    style={{ borderLeft: activeVideoUrl === video.url ? '3px solid var(--accent-color)' : 'none' }}
-                  >
-                    <div className="video-thumb">
-                      <Play size={16} />
-                    </div>
-                    <div className="video-info">
-                      <h4>{video.title}</h4>
-                      <span style={{ display: 'flex', gap: '0.8rem' }}>
-                        <Clock size={12} style={{ marginTop: '2px' }} /> {video.time}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="app-container">
       <aside className="sidebar">
@@ -283,7 +117,169 @@ function App() {
       </aside>
 
       <main className="main-content">
-        {!selectedMachine ? <Dashboard /> : <PlayerView />}
+        {!selectedMachine ? (
+          <div className="fade-in">
+            <header className="header">
+              <div className="title-group">
+                <h1>BPGROUP AOE Tournament</h1>
+                <p>Hệ thống giám sát và xem lại giải đấu nội bộ Bestprice</p>
+              </div>
+              <div className="stats-bar">
+                <div className="stat-chip">
+                  <span className="stat-dot"></span>
+                  <span>{onlineStreams.length} / 8 Đang Trực Tiếp</span>
+                </div>
+              </div>
+            </header>
+
+            <div className="machine-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))' }}>
+              {INITIAL_MACHINES.map((machine) => {
+                const isOnline = onlineStreams.includes(machine.id);
+                return (
+                  <div
+                    key={machine.id}
+                    className="machine-card"
+                    onClick={() => setSelectedMachine(machine)}
+                  >
+                    <div className="card-header">
+                      <div className="machine-name">
+                        <Monitor size={18} />
+                        <span>{machine.id.toUpperCase()}</span>
+                      </div>
+                      <span className={`team-badge ${machine.team}`}>
+                        {machine.team === 'team1' ? 'Team 1' : 'Team 2'}
+                      </span>
+                    </div>
+                    <div className="card-preview">
+                      <div style={{ textAlign: 'center', color: isOnline ? 'var(--accent-color)' : '#475569' }}>
+                        {isOnline ? (
+                          <Video size={56} strokeWidth={1} style={{ opacity: 0.8 }} />
+                        ) : (
+                          <Tv size={56} opacity={0.3} strokeWidth={1} />
+                        )}
+                        <div style={{ fontSize: '0.8rem', marginTop: '1rem', fontWeight: 600, letterSpacing: '1px' }}>
+                          {isOnline ? 'SẴN SÀNG' : 'CHƯA CÓ LUỒNG'}
+                        </div>
+                      </div>
+
+                      <div className="overlay-status">
+                        <span className="stat-dot" style={{ backgroundColor: isOnline ? '#ef4444' : '#94a3b8' }}></span>
+                        <span className={isOnline ? 'live-tag' : ''}>
+                          {isOnline ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                      </div>
+                      {isOnline && (
+                        <div className="play-icon">
+                          <Play size={40} fill="currentColor" />
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{machine.name}</span>
+                      <ChevronRight size={16} color="#94a3b8" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="fade-in">
+            <button
+              onClick={() => setSelectedMachine(null)}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', cursor: 'pointer' }}
+            >
+              <ArrowLeft size={18} /> Quay lại Dashboard
+            </button>
+
+            <div className="player-view" style={{ gridTemplateColumns: '1fr 350px' }}>
+              <div className="video-section">
+                <div className="video-container" style={{ position: 'relative', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                  {activeVideoUrl ? (
+                    <VideoPlayer key={activeVideoUrl} src={activeVideoUrl} />
+                  ) : (
+                    <div style={{ padding: '4rem', textAlign: 'center', color: '#94a3b8' }}>
+                      <Monitor size={48} style={{ marginBottom: '1rem', opacity: 0.2 }} />
+                      <p>{mainTab === 'archives' ? 'Hãy chọn một bản ghi từ danh sách bên phải' : 'Chưa có nguồn video'}</p>
+                    </div>
+                  )}
+                  {activeVideoUrl && currentView === 'live' && (
+                    <div style={{ position: 'absolute', top: '1.5rem', left: '1.5rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
+                      <span style={{ background: onlineStreams.includes(selectedMachine.id) ? '#ef4444' : '#64748b', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
+                        {onlineStreams.includes(selectedMachine.id) ? 'LIVE' : 'STANDBY'}
+                      </span>
+                      <span style={{ background: 'rgba(0,0,0,0.6)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', backdropFilter: 'blur(4px)' }}>{selectedMachine.id}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginTop: '1.5rem', background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '20px', border: '1px solid var(--panel-border)' }}>
+                  <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+                    {currentView === 'live' ? `Đang xem: ${selectedMachine.id}` : 'Đang xem lại video'}
+                  </h2>
+                  <div style={{ display: 'flex', gap: '1.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <User size={16} /> Bestprice IT Tournament
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Trophy size={16} /> BPGROUP Series
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="history-panel">
+                <div className="history-header">
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <History size={20} color="var(--accent-color)" />
+                    Danh sách ghi hình
+                  </h3>
+                </div>
+                <div className="history-list">
+                  <div className="video-item" onClick={() => {
+                    setCurrentView('live');
+                    setActiveVideoUrl(`${SRS_BASE_URL}/live/${selectedMachine.id}.m3u8`);
+                  }}
+                    style={{ fontWeight: currentView === 'live' ? 'bold' : 'normal', borderLeft: currentView === 'live' ? '3px solid #ef4444' : 'none' }}>
+                    <div className="video-thumb" style={{ background: '#450a0a' }}>
+                      <div className="stat-dot" style={{ backgroundColor: '#ef4444' }}></div>
+                    </div>
+                    <div className="video-info">
+                      <h4>XEM TRỰC TIẾP</h4>
+                      <span>{onlineStreams.includes(selectedMachine.id) ? 'Đang diễn ra' : 'Đang chờ luồng...'}</span>
+                    </div>
+                  </div>
+
+                  {recordings.map((group) => (
+                    <div key={group.date} className="date-group">
+                      <div className="date-label">
+                        <Calendar size={14} /> {group.date}
+                      </div>
+                      {group.items.map((video) => (
+                        <div
+                          key={video.id}
+                          className="video-item"
+                          onClick={() => handleRecordingClick(video)}
+                          style={{ borderLeft: activeVideoUrl === video.url ? '3px solid var(--accent-color)' : 'none' }}
+                        >
+                          <div className="video-thumb">
+                            <Play size={16} />
+                          </div>
+                          <div className="video-info">
+                            <h4>{video.title}</h4>
+                            <span style={{ display: 'flex', gap: '0.8rem' }}>
+                              <Clock size={12} style={{ marginTop: '2px' }} /> {video.time}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

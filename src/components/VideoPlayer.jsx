@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 
-export const VideoPlayer = ({ src }) => {
+export const VideoPlayer = ({ src, controls = true, autoplay = true, muted = false }) => {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
 
@@ -16,8 +16,9 @@ export const VideoPlayer = ({ src }) => {
       const detectedType = src.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
 
       const player = playerRef.current = videojs(videoElement, {
-        autoplay: true,
-        controls: true,
+        autoplay,
+        controls,
+        muted,
         responsive: true,
         fluid: true,
         sources: [{ src, type: detectedType }]
@@ -29,7 +30,7 @@ export const VideoPlayer = ({ src }) => {
       const detectedType = src.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
       player.src({ src, type: detectedType });
     }
-  }, [src, videoRef]);
+  }, [src, controls, autoplay, muted]);
 
   // Dispose the player on unmount
   useEffect(() => {
