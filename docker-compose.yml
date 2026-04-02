@@ -9,6 +9,7 @@ services:
     volumes:
       - ./srs.conf:/usr/local/srs/conf/srs.conf
       - srs_data:/usr/local/srs/objs/nginx/html/dvr
+    command: ["./objs/srs", "-c", "conf/srs.conf"]
     restart: always
 
   worker:
@@ -24,7 +25,7 @@ services:
     build: ./web
     container_name: srs-dashboard
     ports:
-      - "80:80"
+      - "83:80"
     volumes:
       - srs_data:/data
     depends_on:

@@ -19,6 +19,22 @@ def save_recordings(data):
     with open(LOG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
+@app.route('/api/v1/players', methods=['GET'])
+def get_players():
+    players_file = os.path.join(DATA_DIR, 'players.json')
+    if os.path.exists(players_file):
+        with open(players_file, 'r') as f:
+            return jsonify(json.load(f))
+    return jsonify({})
+
+@app.route('/api/v1/players', methods=['POST'])
+def save_players():
+    data = request.json
+    players_file = os.path.join(DATA_DIR, 'players.json')
+    with open(players_file, 'w') as f:
+        json.dump(data, f, indent=4)
+    return jsonify({"status": "Players saved"}), 200
+
 @app.route('/api/v1/metadata', methods=['GET'])
 def get_metadata():
     date_str = datetime.now().strftime('%Y-%m-%d')
@@ -33,30 +49,32 @@ def get_metadata():
     # For any date in recordings but not in meta, or to update current day's status:
     for date, files in recordings.items():
         if date not in meta or meta[date].get('status') != 'completed':
-            # Count total duration in recordings for this date? 
-            # We don't have individual file durations yet without probe.
-            # But let's assume we update some info.
             meta[date] = meta.get(date, {
-                "file": f"summary_{date}.mp4",
-                "duration_minutes": 0,
+                "streams": {},
                 "status": "recording"
             })
-            # Actually, let's just use existing metadata if available.
     
     return jsonify(meta)
 
 @app.route('/api/v1/dvr', methods=['POST'])
 def on_dvr():
-    # SRS sends: { "action": "on_dvr", "client_id": "...", "ip": "...", "vhost": "...", "app": "...", "stream": "...", "cwd": "...", "file": "..." }
+    # SRS sends: { "action": "on_dvr", "client_id": "...", "vhost": "...", "app": "...", "stream": "...", "file": "..." }
     data = request.json
+    print(f"Received hook: {data}")
     if not data or data.get('action') != 'on_dvr':
         return "Invalid hook", 400
 
     file_path = data.get('file')
-    # Map SRS internal path to worker volume path (only dvr subfolder is mounted)
-    if file_path.startswith('/usr/local/srs/objs/nginx/html/dvr'):
-        file_path = file_path.replace('/usr/local/srs/objs/nginx/html/dvr', DATA_DIR)
-    # Ensure no leading slash issues if DATA_DIR doesn't end with slash
+    if not file_path:
+        return "No file in payload", 400
+
+    # Handle SRS file path normalization
+    # If the path contains the dvr directory portion, strip everything before it and map to DATA_DIR
+    if 'objs/nginx/html/dvr' in file_path:
+        file_path = file_path.split('objs/nginx/html/dvr')[-1].lstrip('/')
+        file_path = os.path.join(DATA_DIR, file_path)
+    
+    # Ensure no leading slash issues and normalize path
     file_path = os.path.normpath(file_path)
     
     stream_id = data.get('stream')
@@ -75,7 +93,13 @@ def on_dvr():
     })
     
     save_recordings(recordings)
-    return "OK", 200
+    return "0", 200
+
+@app.route('/api/v1/debug', methods=['POST'])
+def debug_hook():
+    data = request.json
+    print(f"DEBUG HOOK: {data}")
+    return "0", 200
 
 @app.route('/api/v1/merge/<date_str>', methods=['POST'])
 def merge_date(date_str):
@@ -88,53 +112,63 @@ def do_merge(date_str):
     if date_str not in recordings:
         return
     
-    files = [r['file'] for r in recordings[date_str]]
-    if not files:
-        return
-
-    # Create concat list for ffmpeg
-    list_file = os.path.join(DATA_DIR, f'list_{date_str}.txt')
-    with open(list_file, 'w') as f:
-        for file in files:
-            # Files are relative to SRS root or absolute. 
-            # In our setup they are in /data/...
-            f.write(f"file '{file}'\n")
-
-    output_file = os.path.join(DATA_DIR, f'summary_{date_str}.mp4')
+    # Group by stream
+    stream_recordings = {}
+    for r in recordings[date_str]:
+        s_id = r['stream']
+        if s_id not in stream_recordings:
+            stream_recordings[s_id] = []
+        stream_recordings[s_id].append(r['file'])
     
-    # Run ffmpeg concat
-    # ffmpeg -f concat -safe 0 -i list.txt -c copy output.mp4
-    cmd = [
-        'ffmpeg', '-f', 'concat', '-safe', '0', 
-        '-i', list_file, '-c', 'copy', '-y', output_file
-    ]
-    
-    try:
-        subprocess.run(cmd, check=True)
-        # Calculate duration
-        duration_cmd = [
-            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1', output_file
-        ]
-        duration = float(subprocess.check_output(duration_cmd).decode().strip())
-        
-        # Update metadata
-        meta_file = os.path.join(DATA_DIR, 'metadata.json')
-        meta = {}
-        if os.path.exists(meta_file):
-            with open(meta_file, 'r') as f:
-                meta = json.load(f)
-        
-        meta[date_str] = {
-            "file": f"summary_{date_str}.mp4",
-            "duration_minutes": round(duration / 60, 2),
-            "status": "completed"
-        }
-        with open(meta_file, 'w') as f:
-            json.dump(meta, f, indent=4)
+    meta_file = os.path.join(DATA_DIR, 'metadata.json')
+    meta = {}
+    if os.path.exists(meta_file):
+        with open(meta_file, 'r') as f:
+            meta = json.load(f)
             
-    except Exception as e:
-        print(f"Error merging {date_str}: {e}")
+    if date_str not in meta:
+        meta[date_str] = {"streams": {}, "status": "processing"}
+    else:
+        if "streams" not in meta[date_str]:
+            meta[date_str]["streams"] = {}
+
+    for s_id, files in stream_recordings.items():
+        if not files: continue
+        
+        list_file = os.path.join(DATA_DIR, f'list_{date_str}_{s_id}.txt')
+        with open(list_file, 'w') as f:
+            for file in files:
+                f.write(f"file '{file}'\n")
+
+        output_file_name = f'summary_{date_str}_{s_id}.mp4'
+        output_file_path = os.path.join(DATA_DIR, output_file_name)
+        
+        cmd = [
+            'ffmpeg', '-f', 'concat', '-safe', '0', 
+            '-i', list_file, '-c', 'copy', '-y', output_file_path
+        ]
+        
+        try:
+            subprocess.run(cmd, check=True)
+            duration_cmd = [
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', output_file_path
+            ]
+            duration = float(subprocess.check_output(duration_cmd).decode().strip())
+            
+            meta[date_str]["streams"][s_id] = {
+                "file": output_file_name,
+                "duration_minutes": round(duration / 60, 2)
+            }
+            # Clean up list file
+            if os.path.exists(list_file):
+                os.remove(list_file)
+        except Exception as e:
+            print(f"Error merging {date_str} for stream {s_id}: {e}")
+
+    meta[date_str]["status"] = "completed"
+    with open(meta_file, 'w') as f:
+        json.dump(meta, f, indent=4)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

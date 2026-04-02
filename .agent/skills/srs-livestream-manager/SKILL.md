@@ -5,40 +5,43 @@ description: Manage and maintain the SRS-based AOE Livestream system for BestPri
 
 # SRS Livestream Manager
 
-A skill for managing the AOE Streaming stack at BestPrice.
+A specialized skill for managing the AOE Streaming stack at BestPrice.
 
-## Overview
+## System Architecture
 
-The system consists of:
-1. **SRS Server**: Core streaming engine (HLS + DVR).
-2. **Worker**: Python/FFmpeg service for daily video merging.
-3. **Dashboard**: React interface for Live (8 players) and Playback (Daily replays).
-4. **Nginx**: Serving the frontend and proxying HLS/API request.
+The system is a multi-container Docker environment:
+1. **SRS Media Server**: Core engine. Custom config must be enforced via `command: ["./objs/srs", "-c", "conf/srs.conf"]`.
+2. **Python Worker**: Handles `on_dvr` hooks, concatenates segments using `ffmpeg`, and manages `metadata.json`.
+3. **React Dashboard**: Frontend serving Live (8 streams) and Archive (daily per-PC videos).
+4. **Shared Volume**: `srs_data` mounted at `/data` across all services for persistent JSON and video storage.
 
-## Common Tasks
+## Critical Technical Requirements
 
-### Modifying Stream Keys
-The system is configured for 8 players: `team1-1` to `team1-4` and `team2-1` to `team2-4`.
-- To add more keys, update `LiveView.jsx` and `srs.conf` if specific logic is needed.
+### 1. SRS Configuration & DVR
+- **Config Path**: Custom configs must be mounted to `/usr/local/srs/conf/srs.conf`.
+- **DVR Plan**: Use `dvr_plan segment;` with `dvr_duration 60;` and `dvr_wait_keyframe off;` to ensure segments are closed frequently and available for merging quickly.
+- **Paths**: SRS `dvr_path` and `hls_path` should use absolute paths like `/usr/local/srs/objs/nginx/html/dvr/...` to match volume mounts.
 
-### Adjusting HLS Performance
-To reduce latency, modify `srs.conf`:
-- `hls_fragment`: Decrease (e.g., 1s instead of 2s).
-- `hls_window`: Increase for more buffer.
+### 2. HTTP Hooks Protocol
+- **Success Response**: SRS hooks (e.g., `on_dvr`) **MUST** return a string `"0"` or integer `0` with HTTP 200. Any other response (like "OK" or HTML 404) will cause SRS to disconnect the client with error `4005`.
+- **Debug Hook**: Use `/api/v1/debug` to log raw SRS payloads during troubleshooting.
 
-### Managing Playback Logic
-The worker merges files based on the `on_dvr` hook.
-- Data is stored in the Docker volume `srs_data` mapped to `/data` in containers.
-- Replays are served by Nginx via the `/replays/` location.
-- Metadata for the Netflix-style gallery is in `metadata.json`.
+### 3. Worker Operations
+- **Rebuilding**: Changes to `worker/main.py` require a container rebuild: `docker-compose up -d --build worker`.
+- **FFmpeg Merging**: Uses `ffmpeg -f concat` on `.flv` segments to create a single `.mp4` daily summary per stream ID.
 
-## Directory Structure
-- `/srs.conf`: SRS server config.
-- `/docker-compose.yml`: Service orchestration.
-- `/worker/`: Video processing logic.
-- `/web/`: React Dashboard frontend.
-- `/scripts/`: Operational scripts.
+### 4. Frontend Playback
+- **Mixed Formats**: `VideoPlayer.jsx` must support HLS (`.m3u8`) for live feeds and direct MP4 playback for archives.
+- **Dynamic URLs**: Live streams use `/live/[stream_id].m3u8` or `/__defaultApp__/[stream_id].m3u8`. Archives use `/replays/[filename].mp4`.
 
 ## Operations
-- Deploy/Restart: `docker compose up -d --build`.
-- Check Logs: `docker compose logs -f srs` or `docker compose logs -f worker`.
+- **Full Refresh**: `docker-compose down && docker-compose up -d --build`.
+- **View Recording Log**: `docker-compose exec worker cat /data/recordings.json`.
+- **Manual Merge**: Trigger via `POST /api/v1/merge/[YYYY-MM-DD]`.
+
+## Directory Structure
+- `/srs.conf`: Server logic.
+- `/docker-compose.yml`: Infrastructure.
+- `/worker/main.py`: Backend & Video merging.
+- `/web/src/components/`: Dashboard views (LiveView, PlaybackView, VideoPlayer).
+- `/data/`: (Volume) Persistent storage for metadata and video files.
