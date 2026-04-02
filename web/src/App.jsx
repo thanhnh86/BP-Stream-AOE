@@ -12,6 +12,7 @@ function App() {
 
   // Sync theme with document class
   useEffect(() => {
+    // Update Theme Class
     if (darkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('srs-theme', 'dark');
@@ -19,7 +20,11 @@ function App() {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('srs-theme', 'light');
     }
-  }, [darkMode]);
+
+    // Update Document Title for SEO/UX
+    const title = tab === 'live' ? 'Trực Tiếp - BP AOE Streaming' : 'Xem Lại - BP AOE Streaming';
+    document.title = `${title} | BPGROUP Tournament Dashboard`;
+  }, [darkMode, tab]);
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-main)] text-[var(--text-primary)] font-sans selection:bg-blue-500/30 overflow-hidden transition-colors duration-300">
