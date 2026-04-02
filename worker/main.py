@@ -110,6 +110,7 @@ def merge_date(date_str):
 def do_merge(date_str):
     recordings = get_recordings()
     if date_str not in recordings:
+        print(f"No recordings found for date: {date_str}")
         return
     
     # Group by stream
@@ -124,47 +125,80 @@ def do_merge(date_str):
     meta = {}
     if os.path.exists(meta_file):
         with open(meta_file, 'r') as f:
-            meta = json.load(f)
+            try:
+                meta = json.load(f)
+            except:
+                meta = {}
             
     if date_str not in meta:
         meta[date_str] = {"streams": {}, "status": "processing"}
     else:
+        meta[date_str]["status"] = "processing"
         if "streams" not in meta[date_str]:
             meta[date_str]["streams"] = {}
+
+    # Save initial processing status
+    with open(meta_file, 'w') as f:
+        json.dump(meta, f, indent=4)
 
     for s_id, files in stream_recordings.items():
         if not files: continue
         
-        list_file = os.path.join(DATA_DIR, f'list_{date_str}_{s_id}.txt')
+        # Create a dedicated directory for this stream's replay
+        replay_dir = os.path.join(DATA_DIR, 'replays', date_str, s_id)
+        os.makedirs(replay_dir, exist_ok=True)
+
+        list_file = os.path.join(replay_dir, 'segments.txt')
         with open(list_file, 'w') as f:
             for file in files:
                 f.write(f"file '{file}'\n")
 
-        output_file_name = f'summary_{date_str}_{s_id}.mp4'
-        output_file_path = os.path.join(DATA_DIR, output_file_name)
+        mp4_output = os.path.join(replay_dir, 'summary.mp4')
+        hls_output = os.path.join(replay_dir, 'playlist.m3u8')
         
-        cmd = [
+        # 1. Generate FastStart MP4
+        # Using -c copy -movflags +faststart for smooth seeking
+        mp4_cmd = [
             'ffmpeg', '-f', 'concat', '-safe', '0', 
-            '-i', list_file, '-c', 'copy', '-y', output_file_path
+            '-i', list_file, '-c', 'copy', '-movflags', '+faststart', '-y', mp4_output
+        ]
+        
+        # 2. Generate HLS for "Netflix-like" seeking
+        hls_cmd = [
+            'ffmpeg', '-f', 'concat', '-safe', '0', 
+            '-i', list_file, '-c', 'copy', 
+            '-hls_time', '10', '-hls_list_size', '0', 
+            '-hls_segment_filename', os.path.join(replay_dir, 'seg_%d.ts'),
+            '-y', hls_output
         ]
         
         try:
-            subprocess.run(cmd, check=True)
+            print(f"Merging MP4 for {s_id}...")
+            subprocess.run(mp4_cmd, check=True)
+            
+            print(f"Generating HLS for {s_id}...")
+            subprocess.run(hls_cmd, check=True)
+
             duration_cmd = [
                 'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1', output_file_path
+                '-of', 'default=noprint_wrappers=1:nokey=1', mp4_output
             ]
             duration = float(subprocess.check_output(duration_cmd).decode().strip())
             
+            # File paths relative to /data for the frontend to resolve
             meta[date_str]["streams"][s_id] = {
-                "file": output_file_name,
+                "mp4": f"replays/{date_str}/{s_id}/summary.mp4",
+                "hls": f"replays/{date_str}/{s_id}/playlist.m3u8",
                 "duration_minutes": round(duration / 60, 2)
             }
+            # Also keep "file" for backward compatibility if needed, though we'll update frontend
+            meta[date_str]["streams"][s_id]["file"] = meta[date_str]["streams"][s_id]["mp4"]
+            
             # Clean up list file
             if os.path.exists(list_file):
                 os.remove(list_file)
         except Exception as e:
-            print(f"Error merging {date_str} for stream {s_id}: {e}")
+            print(f"Error processing {date_str} for stream {s_id}: {e}")
 
     meta[date_str]["status"] = "completed"
     with open(meta_file, 'w') as f:

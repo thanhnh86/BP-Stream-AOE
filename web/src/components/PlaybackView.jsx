@@ -57,7 +57,7 @@ const PlaybackView = ({ darkMode }) => {
                             darkMode ? 'bg-black border-white/5 ring-1 ring-white/10' : 'bg-slate-200 border-slate-300 ring-1 ring-slate-100'
                         }`}>
                             {currentVideo ? (
-                                <VideoPlayer url={`/replays/${currentVideo.file}`} />
+                                <VideoPlayer url={currentVideo.hls ? `/replays/${currentVideo.hls}` : `/replays/${currentVideo.file}`} />
                             ) : (
                                 <div className={`w-full h-full flex flex-col items-center justify-center gap-6 transition-colors duration-500 ${
                                     darkMode ? 'text-slate-700 bg-slate-950/50' : 'text-slate-400 bg-slate-50'
@@ -170,16 +170,26 @@ const PlaybackView = ({ darkMode }) => {
                                         </div>
                                     </button>
                                     
-                                    {selectedDate === date && meta.status !== 'completed' && (
+                                    {selectedDate === date && (
                                         <button 
                                             onClick={() => {
                                                 fetch(`/api/v1/merge/${date}`, { method: 'POST' });
-                                                alert('Đã bắt đầu quá trình gộp video...');
+                                                alert('Đã bắt đầu quá trình tổng hợp video (HLS & MP4)...');
+                                                // Optimistically update status to show spinner
+                                                setReplays(prev => ({
+                                                    ...prev,
+                                                    [date]: { ...prev[date], status: 'processing' }
+                                                }));
                                             }}
-                                            className="mx-2 mb-2 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-[10px] font-black text-emerald-400 rounded-xl border border-emerald-500/20 transition-all uppercase tracking-widest flex items-center justify-center gap-2 group/btn"
+                                            disabled={meta.status === 'processing'}
+                                            className={`mx-2 mb-2 py-2.5 text-[10px] font-black rounded-xl border transition-all uppercase tracking-widest flex items-center justify-center gap-2 group/btn ${
+                                                meta.status === 'processing'
+                                                ? 'bg-slate-500/10 text-slate-500 border-slate-500/20 cursor-not-allowed'
+                                                : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                                            }`}
                                         >
-                                            <HardDrive size={12} className="group-hover/btn:scale-110 transition-transform" />
-                                            Gộp Video Ngày Này
+                                            <HardDrive size={12} className={`${meta.status === 'processing' ? 'animate-spin' : 'group-hover/btn:scale-110 transition-transform'}`} />
+                                            {meta.status === 'completed' ? 'Tổng Hợp Lại Dữ Liệu' : 'Tổng Hợp File Ghi Hình'}
                                         </button>
                                     )}
                                 </div>
