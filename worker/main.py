@@ -162,10 +162,16 @@ def do_merge(date_str):
             meta[date_str]["progress_percent"] = 20
             with open(meta_file, 'w') as f: json.dump(meta, f, indent=4)
 
-            # 1. Generate FastStart MP4
+            # 1. Generate FastStart MP4 summary with normalized audio
+            # We transcode audio to aac here to fix any corruption from individual segments
             subprocess.run([
-                'ffmpeg', '-fflags', '+genpts', '-f', 'concat', '-safe', '0', 
-                '-i', list_file, '-c', 'copy', '-movflags', '+faststart', '-y', mp4_output
+                'ffmpeg', '-y',
+                '-fflags', '+genpts+igndts+discardcorrupt',
+                '-f', 'concat', '-safe', '0', '-i', list_file,
+                '-c:v', 'copy',
+                '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '44100',
+                '-movflags', '+faststart',
+                mp4_output
             ], check=True)
             
             # Update progress: Step 2/2
@@ -173,13 +179,18 @@ def do_merge(date_str):
             meta[date_str]["progress_percent"] = 60
             with open(meta_file, 'w') as f: json.dump(meta, f, indent=4)
 
-            # 2. Generate HLS from the MP4 summary (Transcode audio to avoid frame size limits)
+            # 2. Generate HLS from the MP4 summary
+            # We use the already-normalized MP4 as input
             subprocess.run([
-                'ffmpeg', '-i', mp4_output, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
+                'ffmpeg', '-y',
+                '-i', mp4_output,
+                '-c:v', 'copy', 
+                '-c:a', 'copy', # Audio is already AAC from previous step
                 '-bsf:v', 'h264_mp4toannexb',
-                '-hls_time', '5', '-hls_list_size', '0', 
+                '-hls_time', '5', 
+                '-hls_list_size', '0', 
                 '-hls_segment_filename', os.path.join(replay_dir, 'segment_%d.ts'),
-                '-y', hls_output
+                hls_output
             ], check=True)
 
             duration_cmd = [

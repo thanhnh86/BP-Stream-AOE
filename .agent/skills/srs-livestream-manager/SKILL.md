@@ -46,3 +46,8 @@ The system is a multi-container Docker environment:
 - `/worker/main.py`: Backend & Video merging.
 - `/web/src/components/`: Dashboard views (LiveView, PlaybackView, VideoPlayer).
 - `/data/`: (Volume) Persistent storage for metadata and video files.
+## Server Details
+- **IP**: 192.168.9.214
+- **User**: test
+- **Password**: 123456 (Save for SSH use)
+- **Deployment Path**: `/home/test/streaming` (Likely location, verify)
