@@ -1,136 +1,109 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
-import { Plyr } from 'plyr-react';
-import 'plyr/dist/plyr.css';
+import React, { useEffect, useRef } from 'react';
+import videojs from 'video.js';
+import 'video.js/dist/video-js.css';
 
-const VideoPlayer = ({ url, downloadUrl, muted = true, autoPlay = true, poster = '' }) => {
+const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '' }) => {
   const videoRef = useRef(null);
-  const hlsRef = useRef(null);
-  const [isInView, setIsInView] = useState(false);
-  const containerRef = useRef(null);
-
-  // Custom Plyr Options
-  const plyrOptions = {
-    controls: [
-      'play-large', 
-      'play', 
-      'progress', 
-      'current-time', 
-      'duration', 
-      'mute', 
-      'volume', 
-      'captions', 
-      'settings', 
-      'pip', 
-      'airplay', 
-      'download', 
-      'fullscreen'
-    ],
-    keyboard: { focused: true, global: true },
-    tooltips: { controls: true, seek: true },
-    urls: {
-        download: downloadUrl || url
-    }
-  };
-
-  // Lazy Load using IntersectionObserver
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsInView(entry.isIntersecting);
-      },
-      { threshold: 0.1 }
-    );
-
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
+  const playerRef = useRef(null);
 
   useEffect(() => {
-    if (!isInView || !url || !videoRef.current) {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-      return;
-    }
+    // Make sure Video.js player is only initialized once
+    if (!playerRef.current && videoRef.current) {
+      const videoElement = document.createElement("video-js");
 
-    const videoElement = videoRef.current.plyr.media;
-    if (!videoElement) return;
+      videoElement.classList.add('vjs-big-play-centered');
+      videoRef.current.appendChild(videoElement);
 
-    if (url.endsWith('.mp4')) {
-      videoElement.src = url;
-    } else if (Hls.isSupported()) {
-      if (hlsRef.current) hlsRef.current.destroy();
-      const hls = new Hls({
-        capLevelToPlayerSize: true,
-        autoStartLoad: true,
-        maxBufferSize: 0,
-        maxBufferLength: 2,
-        lowLatencyMode: true,
-        enableWorker: true,
+      const player = playerRef.current = videojs(videoElement, {
+        autoplay: autoPlay,
+        controls: true,
+        responsive: true,
+        fluid: true,
+        muted: muted,
+        poster: poster,
+        sources: [{
+          src: url,
+          type: url.endsWith('.mp4') ? 'video/mp4' : 'application/x-mpegURL'
+        }],
+        html5: {
+          vhs: {
+            overrideNative: true
+          },
+          nativeAudioTracks: false,
+          nativeVideoTracks: false
+        },
+        controlBar: {
+            children: [
+                'playToggle',
+                'volumePanel',
+                'currentTimeDisplay',
+                'timeDivider',
+                'durationDisplay',
+                'progressControl',
+                'liveDisplay',
+                'playbackRateMenuButton',
+                'fullscreenToggle',
+            ],
+        },
+      }, () => {
+        // Player is ready
       });
-      hls.loadSource(url);
-      hls.attachMedia(videoElement);
-      hlsRef.current = hls;
-    } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-      videoElement.src = url;
+
+    } else if (playerRef.current) {
+      // Update existing player when url changes
+      const player = playerRef.current;
+      player.autoplay(autoPlay);
+      player.src({
+        src: url,
+        type: url.endsWith('.mp4') ? 'video/mp4' : 'application/x-mpegURL'
+      });
     }
 
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
+      if (playerRef.current) {
+        playerRef.current.dispose();
+        playerRef.current = null;
       }
     };
-  }, [url, isInView, videoRef.current]);
+  }, [url]);
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-black group custom-plyr-theme">
-      <div className="w-full h-full relative">
-        <Plyr
-          ref={videoRef}
-          source={{
-            type: 'video',
-            sources: [
-              {
-                src: url,
-                type: url.endsWith('.mp4') ? 'video/mp4' : 'application/x-mpegURL',
-              },
-            ],
-          }}
-          options={plyrOptions}
-        />
+    <div className="w-full h-full bg-black custom-videojs-theme">
+      <div data-vjs-player className="w-full h-full">
+        <div ref={videoRef} className="w-full h-full" />
       </div>
 
-      {!isInView && (
-        <div className="absolute inset-0 bg-[#0B0E14] flex items-center justify-center z-10 pointer-events-none">
-          <div className="w-8 h-8 rounded-full border-2 border-[#C9A050]/20 border-t-[#C9A050] animate-spin" />
-        </div>
-      )}
-
       <style>{`
-        .custom-plyr-theme {
-          --plyr-color-main: #C9A050;
-          --plyr-video-background: #000;
-          --plyr-font-family: 'Roboto', sans-serif;
+        .custom-videojs-theme .video-js {
+          background-color: #000;
+          font-family: 'Roboto', sans-serif;
         }
-        .plyr--video {
-          height: 100%;
-          border-radius: 0;
+        .custom-videojs-theme .vjs-big-play-button {
+          background-color: rgba(201, 160, 80, 0.8) !important;
+          border-color: #C9A050 !important;
+          border-radius: 50% !important;
+          width: 2em !important;
+          height: 2em !important;
+          line-height: 2em !important;
+          margin-top: -1em !important;
+          margin-left: -1em !important;
         }
-        .plyr__video-wrapper {
-            height: 100%;
-            display: flex;
-            align-items: center;
+        .custom-videojs-theme .vjs-play-progress {
+          background-color: #C9A050 !important;
         }
-        .plyr__controls {
-            padding-bottom: 24px !important;
-            padding-left: 20px !important;
-            padding-right: 20px !important;
+        .custom-videojs-theme .vjs-volume-level {
+          background-color: #C9A050 !important;
         }
-        .plyr__progress__buffer {
-            color: rgba(201, 160, 80, 0.1) !important;
+        .custom-videojs-theme .vjs-control-bar {
+          background-color: rgba(11, 14, 20, 0.8) !important;
+          backdrop-filter: blur(8px);
+        }
+        .video-js.vjs-fluid {
+            padding-top: 56.25% !important; /* 16:9 */
+            height: 0 !important;
+        }
+        .vjs-poster {
+            background-size: cover !important;
         }
       `}</style>
     </div>
@@ -138,4 +111,5 @@ const VideoPlayer = ({ url, downloadUrl, muted = true, autoPlay = true, poster =
 };
 
 export default VideoPlayer;
+
 

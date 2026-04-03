@@ -80,7 +80,6 @@ const PlaybackView = () => {
                         {currentVideo ? (
                             <VideoPlayer 
                                 url={currentVideo.hls ? `/replays/${currentVideo.hls}` : `/replays/${currentVideo.file}`} 
-                                downloadUrl={`/replays/${currentVideo.file}`} 
                             />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center gap-6 text-[var(--text-secondary)] bg-[var(--bg-card)]">
@@ -119,17 +118,6 @@ const PlaybackView = () => {
                                             </p>
                                         </div>
                                     </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-4 w-full lg:w-auto">
-                                    <a 
-                                        href={`/replays/${currentVideo.file}`} 
-                                        download 
-                                        className="flex-1 lg:flex-none px-8 py-4 bg-[#C9A050] hover:bg-[#B38E44] text-[#0B0E14] font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-lg shadow-[#C9A050]/20 transition-all flex items-center justify-center gap-3 group/dl active:scale-95"
-                                    >
-                                        <Archive size={18} className="transition-transform group-hover/dl:-translate-y-1" />
-                                        Tải Video Xuống
-                                    </a>
                                 </div>
                             </div>
                         </div>
