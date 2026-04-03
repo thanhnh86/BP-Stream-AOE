@@ -164,7 +164,7 @@ def do_merge(date_str):
 
             # 1. Generate FastStart MP4
             subprocess.run([
-                'ffmpeg', '-f', 'concat', '-safe', '0', 
+                'ffmpeg', '-fflags', '+genpts', '-f', 'concat', '-safe', '0', 
                 '-i', list_file, '-c', 'copy', '-movflags', '+faststart', '-y', mp4_output
             ], check=True)
             
@@ -173,10 +173,10 @@ def do_merge(date_str):
             meta[date_str]["progress_percent"] = 60
             with open(meta_file, 'w') as f: json.dump(meta, f, indent=4)
 
-            # 2. Generate HLS
+            # 2. Generate HLS from the MP4 summary (Transcode audio to avoid frame size limits)
             subprocess.run([
-                'ffmpeg', '-f', 'concat', '-safe', '0', 
-                '-i', list_file, '-c', 'copy', 
+                'ffmpeg', '-i', mp4_output, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
+                '-bsf:v', 'h264_mp4toannexb',
                 '-hls_time', '5', '-hls_list_size', '0', 
                 '-hls_segment_filename', os.path.join(replay_dir, 'segment_%d.ts'),
                 '-y', hls_output
