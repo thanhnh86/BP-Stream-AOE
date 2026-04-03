@@ -78,7 +78,10 @@ const PlaybackView = () => {
                 <div className="flex-1 space-y-6">
                     <div className="relative aspect-video rounded-3xl overflow-hidden bg-black border border-[var(--border-color)] shadow-2xl">
                         {currentVideo ? (
-                            <VideoPlayer url={currentVideo.hls ? `/replays/${currentVideo.hls}` : `/replays/${currentVideo.file}`} showProgress={true} />
+                            <VideoPlayer 
+                                url={currentVideo.hls ? `/replays/${currentVideo.hls}` : `/replays/${currentVideo.file}`} 
+                                downloadUrl={`/replays/${currentVideo.file}`} 
+                            />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center gap-6 text-[var(--text-secondary)] bg-[var(--bg-card)]">
                                 <div className="p-8 rounded-full border border-[var(--border-color)] bg-[var(--bg-card-hover)]/40">
@@ -94,19 +97,19 @@ const PlaybackView = () => {
 
                     {currentVideo && (
                         <div className="p-8 bg-[var(--bg-card)] rounded-3xl border border-[var(--border-color)] shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                                 <div className="flex items-center gap-5">
                                     <div className="p-4 rounded-2xl bg-[#C9A050]/10 border border-[#C9A050]/20">
                                         <Monitor size={32} className="text-[#C9A050]" />
                                     </div>
-                                    <div>
+                                    <div className="space-y-1">
                                         <div className="flex items-center gap-3">
                                             <h3 className="text-2xl font-black font-outfit text-[var(--accent-secondary)] uppercase tracking-tight">
                                                 {playerNames[selectedStream] || selectedStream}
                                             </h3>
                                             <span className="px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-tighter bg-[var(--bg-card-hover)] text-[var(--text-secondary)] border border-[var(--border-color)]">{selectedStream}</span>
                                         </div>
-                                        <div className="flex items-center gap-4 mt-2">
+                                        <div className="flex items-center gap-4">
                                             <p className="text-xs font-bold flex items-center gap-2 text-[var(--text-secondary)] uppercase tracking-widest">
                                                 <Calendar size={14} className="text-[#C9A050]/60" /> {selectedDate}
                                             </p>
@@ -116,6 +119,17 @@ const PlaybackView = () => {
                                             </p>
                                         </div>
                                     </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-4 w-full lg:w-auto">
+                                    <a 
+                                        href={`/replays/${currentVideo.file}`} 
+                                        download 
+                                        className="flex-1 lg:flex-none px-8 py-4 bg-[#C9A050] hover:bg-[#B38E44] text-[#0B0E14] font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-lg shadow-[#C9A050]/20 transition-all flex items-center justify-center gap-3 group/dl active:scale-95"
+                                    >
+                                        <Archive size={18} className="transition-transform group-hover/dl:-translate-y-1" />
+                                        Tải Video Xuống
+                                    </a>
                                 </div>
                             </div>
                         </div>
