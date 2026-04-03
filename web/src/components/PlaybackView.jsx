@@ -8,26 +8,44 @@ const PlaybackView = () => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedStream, setSelectedStream] = useState(null);
 
-    useEffect(() => {
+    const fetchMetadata = () => {
         fetch('/api/v1/metadata')
             .then(res => res.json())
             .then(data => {
                 setReplays(data);
-                const dates = Object.keys(data).sort((a, b) => b.localeCompare(a));
-                if (dates.length > 0) {
-                    setSelectedDate(dates[0]);
-                    const streams = data[dates[0]].streams || {};
-                    const streamIds = Object.keys(streams);
-                    if (streamIds.length > 0) setSelectedStream(streamIds[0]);
+                // Only auto-select date/stream on first load
+                if (!selectedDate) {
+                    const dates = Object.keys(data).sort((a, b) => b.localeCompare(a));
+                    if (dates.length > 0) {
+                        setSelectedDate(dates[0]);
+                        const streams = data[dates[0]].streams || {};
+                        const streamIds = Object.keys(streams);
+                        if (streamIds.length > 0) setSelectedStream(streamIds[0]);
+                    }
                 }
             })
             .catch(err => console.error("Error fetching replays:", err));
+    };
+
+    useEffect(() => {
+        fetchMetadata();
 
         fetch('/api/v1/players')
             .then(res => res.json())
             .then(data => setPlayerNames(data))
             .catch(err => console.error('Error fetching player names:', err));
     }, []);
+
+    // New: Polling effect for processing status
+    useEffect(() => {
+        const hasProcessing = Object.values(replays).some(m => m.status === 'processing');
+        let interval;
+        if (hasProcessing) {
+            interval = setInterval(fetchMetadata, 3000); // Poll every 3s
+        }
+        return () => clearInterval(interval);
+    }, [replays]);
+
 
     const handleDateChange = (date) => {
         setSelectedDate(date);
@@ -149,8 +167,9 @@ const PlaybackView = () => {
                                                     alert('Đã bắt đầu quá trình tổng hợp video (HLS & MP4)...');
                                                     setReplays(prev => ({
                                                         ...prev,
-                                                        [date]: { ...prev[date], status: 'processing', progress_percent: 10, progress_text: 'Đang khởi tạo...' }
+                                                        [date]: { ...prev[date], status: 'processing', progress_percent: 5, progress_text: 'Đang bắt đầu...' }
                                                     }));
+
                                                 }}
                                                 disabled={meta.status === 'processing'}
                                                 className={`w-full py-3 text-[10px] font-black rounded-xl border transition-all uppercase tracking-widest flex items-center justify-center gap-2 group/btn cursor-pointer ${meta.status === 'processing'

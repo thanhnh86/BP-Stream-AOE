@@ -141,9 +141,14 @@ def do_merge(date_str):
     with open(meta_file, 'w') as f:
         json.dump(meta, f, indent=4)
 
-    for s_id, files in stream_recordings.items():
+    total_streams = len(stream_recordings)
+    for i, (s_id, files) in enumerate(stream_recordings.items()):
         if not files: continue
         
+        # Calculate progress base for this machine (each machine gets a slice of the 0-100 total)
+        machine_progress_start = int((i / total_streams) * 100)
+        machine_progress_step = int(100 / total_streams)
+
         # Create a dedicated directory for this stream's replay
         replay_dir = os.path.join(DATA_DIR, 'replays', date_str, s_id)
         os.makedirs(replay_dir, exist_ok=True)
@@ -158,34 +163,34 @@ def do_merge(date_str):
         
         try:
             # Update progress: Step 1/2
-            meta[date_str]["progress_text"] = f"Đang xử lý máy {s_id} (1/2: Nối file MP4)..."
-            meta[date_str]["progress_percent"] = 20
+            meta[date_str]["progress_text"] = f"Đang xử lý máy {s_id} ({i+1}/{total_streams}: Sửa lỗi & Nối video)..."
+            meta[date_str]["progress_percent"] = machine_progress_start + int(machine_progress_step * 0.1)
             with open(meta_file, 'w') as f: json.dump(meta, f, indent=4)
 
-            # 1. Generate FastStart MP4 summary with normalized audio
-            # We transcode audio to aac here to fix any corruption from individual segments
+            # 1. Generate MP4 summary with FULL TRANSCODING
+            # This is slow but solves corruption, freezing, and seeking issues permanently.
             subprocess.run([
                 'ffmpeg', '-y',
                 '-fflags', '+genpts+igndts+discardcorrupt',
                 '-f', 'concat', '-safe', '0', '-i', list_file,
-                '-c:v', 'copy',
-                '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '44100',
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', # Full video transcode
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '44100', # Clean audio
                 '-movflags', '+faststart',
                 mp4_output
             ], check=True)
             
             # Update progress: Step 2/2
-            meta[date_str]["progress_text"] = f"Đang băm nhỏ dữ liệu máy {s_id} (2/2: HLS Netflix)..."
-            meta[date_str]["progress_percent"] = 60
+            meta[date_str]["progress_text"] = f"Đang băm nhỏ máy {s_id} ({i+1}/{total_streams}: HLS Netflix)..."
+            meta[date_str]["progress_percent"] = machine_progress_start + int(machine_progress_step * 0.7)
             with open(meta_file, 'w') as f: json.dump(meta, f, indent=4)
 
-            # 2. Generate HLS from the MP4 summary
-            # We use the already-normalized MP4 as input
+            # 2. Generate HLS from the cleaned MP4 summary
             subprocess.run([
                 'ffmpeg', '-y',
                 '-i', mp4_output,
                 '-c:v', 'copy', 
-                '-c:a', 'copy', # Audio is already AAC from previous step
+                '-c:a', 'copy', 
                 '-bsf:v', 'h264_mp4toannexb',
                 '-hls_time', '5', 
                 '-hls_list_size', '0', 
@@ -202,16 +207,16 @@ def do_merge(date_str):
             meta[date_str]["streams"][s_id] = {
                 "mp4": f"replays/{date_str}/{s_id}/summary.mp4",
                 "hls": f"replays/{date_str}/{s_id}/index.m3u8",
-                "duration_minutes": round(duration / 60, 2)
+                "duration_minutes": round(duration / 60, 2),
+                "file": f"replays/{date_str}/{s_id}/index.m3u8"
             }
-            # Force "file" to be HLS
-            meta[date_str]["streams"][s_id]["file"] = meta[date_str]["streams"][s_id]["hls"]
             
             if os.path.exists(list_file):
                 os.remove(list_file)
         except Exception as e:
             print(f"Lỗi khi xử lý {s_id}: {e}")
             meta[date_str]["progress_text"] = f"Lỗi tại máy {s_id}: {str(e)}"
+            with open(meta_file, 'w') as f: json.dump(meta, f, indent=4)
 
     meta[date_str]["status"] = "completed"
     meta[date_str]["progress_percent"] = 100
