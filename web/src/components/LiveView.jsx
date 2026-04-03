@@ -7,6 +7,7 @@ const LiveView = () => {
   const [activeStreams, setActiveStreams] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const [selectedStreamId, setSelectedStreamId] = useState(null);
 
   const streams = [
     { id: 'team1-1', label: 'TEAM1-1', team: 'TEAM 1', teamColor: 'text-red-500 bg-red-500/10 border-red-500/20', machine: 'Máy 1' },
@@ -61,6 +62,95 @@ const LiveView = () => {
   };
 
   const onlineCount = Object.keys(activeStreams).length;
+
+  if (selectedStreamId) {
+    const stream = streams.find(s => s.id === selectedStreamId);
+    const isOnline = !!activeStreams[stream.id];
+    const playerName = playerNames[stream.id] || stream.label;
+    const appName = activeStreams[stream.id] || 'live';
+
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <button 
+          onClick={() => setSelectedStreamId(null)}
+          className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[#C9A050] transition-colors cursor-pointer group mb-4"
+        >
+          <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+          <span className="text-sm font-bold uppercase tracking-widest">Quay lại danh sách</span>
+        </button>
+
+        <div className="flex flex-col xl:flex-row gap-8">
+          <div className="flex-1 space-y-6">
+            <div className="aspect-video relative bg-black rounded-3xl border border-[var(--border-color)] overflow-hidden shadow-2xl shadow-black/50">
+              {isOnline ? (
+                <VideoPlayer url={`/${appName}/${stream.id}.m3u8`} />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-6 text-[var(--text-secondary)] bg-[var(--bg-card)]">
+                  <Tv size={80} strokeWidth={1} className="opacity-10" />
+                  <div className="flex items-center gap-2 text-xs font-bold tracking-widest uppercase opacity-40">
+                    <div className="w-2 h-2 rounded-full bg-[var(--text-secondary)]" />
+                    OFFLINE
+                  </div>
+                </div>
+              )}
+              {isOnline && (
+                <div className="absolute top-6 right-6 flex items-center gap-2 px-3 py-1.5 bg-red-600 rounded-lg shadow-xl">
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest">LIVE NOW</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-8 bg-[var(--bg-card)] rounded-3xl border border-[var(--border-color)] shadow-xl">
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                <div className="flex items-center gap-5">
+                  <div className="p-4 rounded-2xl bg-[#C9A050]/10 border border-[#C9A050]/20">
+                    <Monitor size={32} className="text-[#C9A050]" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-3xl font-black font-outfit text-[var(--accent-secondary)] uppercase tracking-tight">
+                        {playerName}
+                      </h3>
+                      <div className={`px-3 py-1 text-[10px] font-black rounded-full border ${stream.teamColor} uppercase tracking-widest`}>
+                        {stream.team}
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em] opacity-60">
+                      {stream.machine} • Đang trực tiếp tại tổng hành dinh
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full xl:w-80 space-y-6">
+             <div className="p-6 bg-[var(--bg-card)] rounded-3xl border border-[var(--border-color)]">
+                <h4 className="text-xs font-black uppercase tracking-[0.2em] text-[var(--text-secondary)] mb-6 opacity-50 flex items-center gap-2">
+                  <Monitor size={14} /> Danh sách máy khác
+                </h4>
+                <div className="grid grid-cols-1 gap-3">
+                  {streams.filter(s => s.id !== selectedStreamId).map(s => (
+                    <button 
+                      key={s.id}
+                      onClick={() => setSelectedStreamId(s.id)}
+                      className="flex items-center justify-between p-4 rounded-2xl bg-[var(--bg-main)]/50 border border-[var(--border-color)] hover:border-[#C9A050]/30 hover:bg-[var(--bg-card-hover)] transition-all cursor-pointer group"
+                    >
+                      <div className="flex flex-col items-start translate-y-[1px]">
+                        <span className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[#C9A050] transition-colors">{playerNames[s.id] || s.label}</span>
+                        <span className="text-[10px] font-medium text-[var(--text-secondary)] uppercase opacity-50">{s.machine}</span>
+                      </div>
+                      <div className={`w-1.5 h-1.5 rounded-full ${activeStreams[s.id] ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-[var(--text-secondary)] opacity-20'}`} />
+                    </button>
+                  ))}
+                </div>
+             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10">
@@ -166,7 +256,10 @@ const LiveView = () => {
               </div>
 
               {/* Card Footer */}
-              <div className="p-4 flex items-center justify-between text-[var(--text-secondary)] group-hover:text-[#C9A050] transition-colors bg-[var(--bg-card-hover)]/20 cursor-pointer">
+              <div 
+                onClick={() => setSelectedStreamId(stream.id)}
+                className="p-4 flex items-center justify-between text-[var(--text-secondary)] hover:bg-[#C9A050]/10 group-hover:text-[#C9A050] transition-all bg-[var(--bg-card-hover)]/20 cursor-pointer"
+              >
                 <span className="text-xs font-medium uppercase tracking-wider opacity-70">{stream.machine}</span>
                 <ChevronRight size={16} />
               </div>

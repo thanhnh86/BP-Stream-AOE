@@ -46,20 +46,33 @@ function App() {
         </button>
       </div>
 
+      {/* Desktop Toggle Button (New) */}
+      <button 
+        onClick={toggleSidebar}
+        className="hidden md:flex fixed bottom-6 left-6 z-[60] p-3 rounded-2xl bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[#C9A050] hover:border-[#C9A050]/30 shadow-xl transition-all duration-300 cursor-pointer group"
+      >
+        <Menu size={20} className={`transition-transform duration-500 ${isSidebarOpen ? 'rotate-180' : ''}`} />
+        {!isSidebarOpen && (
+          <span className="absolute left-full ml-4 px-3 py-1 bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[10px] font-bold uppercase tracking-widest text-[#C9A050] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Mở Menu
+          </span>
+        )}
+      </button>
+
       {/* Backdrop */}
       {isSidebarOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`
-        fixed md:relative inset-y-0 left-0 w-64 flex-shrink-0 bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] flex flex-col z-50 shadow-xl transition-all duration-300 ease-in-out
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        fixed md:relative inset-y-0 left-0 flex-shrink-0 bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] flex flex-col z-50 shadow-2xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
+        ${isSidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden border-none'}
       `}>
-        <div className="p-8 hidden md:block">
+        <div className={`p-8 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'} whitespace-nowrap overflow-hidden`}>
           <div className="flex items-center gap-3 mb-1">
             <Trophy className="text-[#C9A050]" size={28} />
             <h1 className="text-2xl font-black font-outfit tracking-tight text-[var(--accent-secondary)] leading-none uppercase">
@@ -72,40 +85,73 @@ function App() {
         </div>
 
         {/* Brand for Mobile Sidebar */}
-        <div className="p-6 md:hidden border-b border-[var(--border-color)] mb-4">
+        <div className={`p-6 md:hidden border-b border-[var(--border-color)] mb-4 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
           <div className="flex items-center gap-3">
              <Trophy className="text-[#C9A050]" size={24} />
              <span className="text-xl font-black font-outfit text-[var(--accent-secondary)] uppercase">BP AOE Dashboard</span>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 mt-4 md:mt-0">
+        <nav className={`flex-1 px-4 space-y-2 mt-4 md:mt-0 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
           <button
             onClick={() => { setTab('live'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
+            className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
               tab === 'live'
                 ? 'bg-[var(--bg-main)] text-[#C9A050] shadow-md border border-[var(--border-color)]'
                 : 'text-[var(--text-secondary)] hover:text-[#C9A050] hover:bg-[var(--bg-main)]'
             }`}
           >
-            <Video size={18} />
-            Xem trực tiếp
+            <div className="flex items-center gap-3">
+              <Video size={18} />
+              <span>Xem trực tiếp</span>
+            </div>
+            {tab === 'live' && <div className="w-1.5 h-1.5 rounded-full bg-[#C9A050] shadow-[0_0_8px_#C9A050]" />}
           </button>
           
           <button
             onClick={() => { setTab('playback'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
+            className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
               tab === 'playback'
                 ? 'bg-[var(--bg-main)] text-[#C9A050] shadow-md border border-[var(--border-color)]'
                 : 'text-[var(--text-secondary)] hover:text-[#C9A050] hover:bg-[var(--bg-main)]'
             }`}
           >
-            <History size={18} />
-            Xem lại theo ngày
+            <div className="flex items-center gap-3">
+              <History size={18} />
+              <span>Xem lại theo ngày</span>
+            </div>
+             {tab === 'playback' && <div className="w-1.5 h-1.5 rounded-full bg-[#C9A050] shadow-[0_0_8px_#C9A050]" />}
+          </button>
+
+          <div className="pt-4 pb-2 px-4">
+            <div className="h-px bg-[var(--border-color)] opacity-50 mb-4" />
+            <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] opacity-40">Phân tích & Thống kê</p>
+          </div>
+
+          <button
+            disabled
+            className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-bold text-[var(--text-secondary)] opacity-50 cursor-not-allowed group"
+          >
+            <div className="flex items-center gap-3">
+              <Trophy size={18} />
+              <span>Thống kê trận đấu</span>
+            </div>
+            <span className="text-[8px] font-black bg-[var(--bg-main)] px-1.5 py-0.5 rounded border border-[var(--border-color)] group-hover:text-[#C9A050] transition-colors">SOON</span>
+          </button>
+
+          <button
+            disabled
+            className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-bold text-[var(--text-secondary)] opacity-50 cursor-not-allowed group"
+          >
+            <div className="flex items-center gap-3">
+              <Monitor size={18} />
+              <span>Thống kê tỷ số</span>
+            </div>
+            <span className="text-[8px] font-black bg-[var(--bg-main)] px-1.5 py-0.5 rounded border border-[var(--border-color)] group-hover:text-[#C9A050] transition-colors">SOON</span>
           </button>
         </nav>
 
-        <div className="p-4 space-y-4 mb-4 md:mb-0">
+        <div className={`p-4 space-y-4 mb-4 md:mb-0 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
           <button
             onClick={() => setDarkMode(!darkMode)}
             className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--bg-main)] hover:text-[#C9A050] transition-all"
