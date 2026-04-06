@@ -11,6 +11,8 @@ services:
       - srs_data:/usr/local/srs/objs/nginx/html/dvr
     command: ["./objs/srs", "-c", "conf/srs.conf"]
     restart: always
+    networks:
+      - srs-network
 
   db:
     image: mariadb:latest
@@ -57,6 +59,12 @@ services:
       - srs
       - worker
     restart: always
+    networks:
+      - srs-network
+
+networks:
+  srs-network:
+    driver: bridge
 
 volumes:
   srs_data:
@@ -66,4 +74,3 @@ volumes:
     #   type: 'none'
     #   o: 'bind'
     #   device: '/stream/data'
-
