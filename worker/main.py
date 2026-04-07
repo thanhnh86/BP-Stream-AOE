@@ -72,11 +72,44 @@ def init_db():
             print(f"Error creating database: {e}")
             if conn: conn.close()
 
-    # 2. Then ensure the table exists
+    # 2. Then ensure tables exist
     conn = get_db_connection(with_db=True)
     if conn:
         try:
             cursor = conn.cursor()
+            # Players table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS players (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Matches table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS matches (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    match_date DATE NOT NULL,
+                    match_type VARCHAR(50) NOT NULL,
+                    score_a INT DEFAULT 0,
+                    score_b INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Match Participants
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS match_participants (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    match_id INT NOT NULL,
+                    player_id INT NOT NULL,
+                    team ENUM('A', 'B') NOT NULL,
+                    INDEX(match_id),
+                    INDEX(player_id),
+                    FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+                    FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+                )
+            """)
+            # Legacy table (keep for migration and backward compatibility if needed)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS scoreboard (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,19 +122,46 @@ def init_db():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS players (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL UNIQUE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
             conn.commit()
+            
+            # Run migration if needed
+            migrate_legacy_data(cursor, conn)
+            
             cursor.close()
         except Error as e:
             print(f"Error initializing table: {e}")
         finally:
             conn.close()
+
+def migrate_legacy_data(cursor, conn):
+    # Check if matches table is empty and legacy scoreboard has data
+    cursor.execute("SELECT COUNT(*) FROM matches")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("SHOW TABLES LIKE 'scoreboard'")
+        if cursor.fetchone():
+            cursor.execute("SELECT * FROM scoreboard")
+            old_rows = cursor.fetchall()
+            if old_rows:
+                print(f"Migrating {len(old_rows)} records from legacy scoreboard...")
+                for row in old_rows:
+                    # row: (id, match_date, match_type, team_a_players, team_b_players, score_a, score_b, created_at)
+                    m_date, m_type, t_a, t_b, s_a, s_b = row[1], row[2], row[3], row[4], row[5], row[6]
+                    
+                    cursor.execute("INSERT INTO matches (match_date, match_type, score_a, score_b) VALUES (%s, %s, %s, %s)", 
+                                   (m_date, m_type, s_a, s_b))
+                    m_id = cursor.lastrowid
+                    
+                    def add_parts(names, team):
+                        for name in [n.strip() for n in names.split(',') if n.strip()]:
+                            cursor.execute("INSERT IGNORE INTO players (name) VALUES (%s)", (name,))
+                            cursor.execute("SELECT id FROM players WHERE name = %s", (name,))
+                            p_id = cursor.fetchone()[0]
+                            cursor.execute("INSERT INTO match_participants (match_id, player_id, team) VALUES (%s, %s, %s)", (m_id, p_id, team))
+                    
+                    add_parts(t_a, 'A')
+                    add_parts(t_b, 'B')
+                conn.commit()
+                print("Migration successful.")
 
 init_db()
 
@@ -307,7 +367,22 @@ def get_scores():
     
     try:
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM scoreboard ORDER BY match_date DESC, id DESC")
+        # Fetch matches and their participants using GROUP_CONCAT to mimic old format for frontend stability
+        query = """
+            SELECT 
+                m.*,
+                (SELECT GROUP_CONCAT(p.name SEPARATOR ', ') 
+                 FROM match_participants mp 
+                 JOIN players p ON mp.player_id = p.id 
+                 WHERE mp.match_id = m.id AND mp.team = 'A') as team_a_players,
+                (SELECT GROUP_CONCAT(p.name SEPARATOR ', ') 
+                 FROM match_participants mp 
+                 JOIN players p ON mp.player_id = p.id 
+                 WHERE mp.match_id = m.id AND mp.team = 'B') as team_b_players
+            FROM matches m 
+            ORDER BY m.match_date DESC, m.id DESC
+        """
+        cursor.execute(query)
         scores = cursor.fetchall()
         
         grouped_scores = {}
@@ -330,8 +405,8 @@ def add_score():
     data = request.json
     match_date = data.get('match_date')
     match_type = data.get('match_type')
-    team_a_players = data.get('team_a_players')
-    team_b_players = data.get('team_b_players')
+    team_a_players = data.get('team_a_players') # Comma separated names
+    team_b_players = data.get('team_b_players') # Comma separated names
     score_a = data.get('score_a', 0)
     score_b = data.get('score_b', 0)
     
@@ -344,28 +419,77 @@ def add_score():
         
     try:
         cursor = conn.cursor()
+        # 1. Insert Match
         cursor.execute("""
-            INSERT INTO scoreboard (match_date, match_type, team_a_players, team_b_players, score_a, score_b)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (match_date, match_type, team_a_players, team_b_players, score_a, score_b))
+            INSERT INTO matches (match_date, match_type, score_a, score_b)
+            VALUES (%s, %s, %s, %s)
+        """, (match_date, match_type, score_a, score_b))
+        match_id = cursor.lastrowid
+
+        # 2. Add Participants
+        def process_team(names_str, team_label):
+            names = [n.strip() for n in names_str.split(',') if n.strip()]
+            for name in names:
+                # Ensure player exists
+                cursor.execute("INSERT IGNORE INTO players (name) VALUES (%s)", (name,))
+                cursor.execute("SELECT id FROM players WHERE name = %s", (name,))
+                player_id = cursor.fetchone()[0]
+                # Link to match
+                cursor.execute("""
+                    INSERT INTO match_participants (match_id, player_id, team)
+                    VALUES (%s, %s, %s)
+                """, (match_id, player_id, team_label))
+
+        process_team(team_a_players, 'A')
+        process_team(team_b_players, 'B')
+
         conn.commit()
-        return jsonify({"status": "Score added", "id": cursor.lastrowid}), 201
+        return jsonify({"status": "Score added", "id": match_id}), 201
     except Error as e:
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
 
-@app.route('/api/v1/scores/<int:score_id>', methods=['DELETE'])
-def delete_score(score_id):
+@app.route('/api/v1/scores/<int:match_id>', methods=['DELETE'])
+def delete_score(match_id):
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
         
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM scoreboard WHERE id = %s", (score_id,))
+        cursor.execute("DELETE FROM matches WHERE id = %s", (match_id,))
         conn.commit()
         return jsonify({"status": "Score deleted"}), 200
+    except Error as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/v1/stats', methods=['GET'])
+def get_stats():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    try:
+        # Calculate stats based on individual games (wins/losses)
+        query = """
+            SELECT 
+                p.name,
+                SUM(CASE WHEN mp.team = 'A' THEN m.score_a ELSE m.score_b END) as wins,
+                SUM(CASE WHEN mp.team = 'A' THEN m.score_b ELSE m.score_a END) as losses,
+                COUNT(m.id) as match_series_played,
+                SUM(m.score_a + m.score_b) as total_games
+            FROM players p
+            JOIN match_participants mp ON p.id = mp.player_id
+            JOIN matches m ON mp.match_id = m.id
+            GROUP BY p.id, p.name
+            ORDER BY (wins / total_games) DESC, wins DESC
+        """
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query)
+        stats = cursor.fetchall()
+        return jsonify(stats)
     except Error as e:
         return jsonify({"error": str(e)}), 500
     finally:

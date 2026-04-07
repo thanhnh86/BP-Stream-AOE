@@ -35,12 +35,13 @@ services:
     volumes:
       - srs_data:/data
     environment:
-      - DATA_DIR=/data
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_USER=root
-      - DB_PASSWORD=root
-      - DB_NAME=aoe_scoreboard
+      - DATA_DIR=${DATA_DIR:-/data}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-root}
+      - DB_NAME=${DB_NAME:-aoe_scoreboard}
+      - ENV=${ENV:-local}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -55,6 +56,9 @@ services:
       - "83:80"
     volumes:
       - srs_data:/data
+    environment:
+      - DATA_DIR=${DATA_DIR:-/data}
+      - ENV=${ENV:-local}
     depends_on:
       - srs
       - worker
@@ -69,7 +73,7 @@ networks:
 volumes:
   srs_data:
     driver: local
-    # production only
+    # For PRODUCTION, uncomment driver_opts below and set to actual path
     # driver_opts:
     #   type: 'none'
     #   o: 'bind'
