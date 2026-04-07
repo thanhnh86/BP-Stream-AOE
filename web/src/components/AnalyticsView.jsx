@@ -200,7 +200,7 @@ const AnalyticsView = () => {
             </div>
           </div>
           
-          <div className="h-44 flex items-end justify-between gap-2 px-2 border-b border-[var(--border-color)] pb-2 overflow-x-auto overflow-y-hidden">
+          <div className="h-60 flex items-end justify-between gap-2 px-2 border-b border-[var(--border-color)] pb-2 overflow-x-auto">
             {[...Array(15)].map((_, i) => {
               const date = new Date();
               date.setDate(date.getDate() - (14 - i));
@@ -212,8 +212,8 @@ const AnalyticsView = () => {
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-2 group/bar min-w-[30px]">
                   <div className="w-full relative flex flex-col-reverse items-center justify-start min-h-[4px]">
-                    <div className="absolute -top-12 bg-[var(--bg-main)] border border-[var(--border-color)] px-2 py-1 rounded text-[8px] font-black whitespace-nowrap opacity-0 group-hover/bar:opacity-100 transition-opacity shadow-xl z-20 pointer-events-none text-center">
-                      <p className="opacity-40 mb-0.5">{dStr}</p>
+                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[var(--bg-card)] border border-[var(--border-color)] px-3 py-1.5 rounded-lg text-[10px] font-black whitespace-nowrap opacity-0 group-hover/bar:opacity-100 transition-opacity shadow-2xl z-50 pointer-events-none text-center">
+                      <p className="text-[9px] opacity-40 mb-0.5 font-bold">{dStr}</p>
                       <p className="text-orange-500">{dayTotal} Trận</p>
                     </div>
                     
@@ -406,13 +406,13 @@ const AnalyticsView = () => {
                             </div>
                             <span className="text-xs font-black opacity-30 uppercase">{data.total} KÈO</span>
                           </div>
-                          <div className="h-2.5 w-full bg-[var(--bg-main)] rounded-full overflow-hidden flex p-0.5 border border-[var(--border-color)]">
+                          <div className="h-4 w-full bg-[var(--bg-main)] rounded-full overflow-hidden flex p-0.5 border border-[var(--border-color)]">
                             <div 
-                              className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full transition-all duration-1000" 
+                              className="h-full bg-orange-500 dark:bg-[#f1812e] rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(241,129,46,0.3)]" 
                               style={{ width: `${rate}%` }}
                             />
                             <div 
-                              className="h-full opacity-20 bg-red-500 transition-all duration-1000 ml-0.5 rounded-full" 
+                              className="h-full bg-slate-300 dark:bg-slate-700 transition-all duration-1000 ml-0.5 rounded-full" 
                               style={{ width: `${data.total > 0 ? 100 - rate : 0}%` }}
                             />
                           </div>

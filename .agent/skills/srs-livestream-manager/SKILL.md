@@ -35,7 +35,8 @@ The system is a multi-container Docker environment:
 ### 4. Frontend & Analytics
 - **Analytics Dashboard**: Uses SVG-based visualizations. Includes a Heatmap/Bar chart for frequency and a Donut chart for category distribution.
 - **Dynamic Categories**: Support asymmetrical matches (e.g., 3-4, 1-2). Categories are named dynamically based on team sizes.
-- **Professional Styling**: Maintain high-contrast, premium dark-mode visuals using `var(--accent-secondary)` and `f1812e` orange themes.
+- **Professional Styling**: Maintain high-contrast, premium dark-mode visuals using `var(--accent-secondary)` and `f1812e` orange themes. 
+- **Light/Dark Mode Support**: Always design components ensuring accessibility and clarity in both light and dark modes. Use CSS variables defined in `index.css` for background and text colors to maintain consistency.
 
 ## Operations
 - **Remote Execution**: All docker commands MUST be executed on the production server via SSH.
