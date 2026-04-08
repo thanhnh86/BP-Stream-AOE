@@ -102,19 +102,21 @@ const PlaybackView = () => {
             .catch(err => console.error('Error fetching all players:', err));
     }, []);
 
-    const handleSavePlayerName = (streamId, newName) => {
-        if (!newName) return;
-        const updatedNames = { ...playerNames, [streamId]: newName };
-        setPlayerNames(updatedNames);
-        setEditingStreamId(null);
+    const handleSavePlayerName = (date, streamId, newName) => {
+        if (!newName || !date) return;
 
-        fetch('/api/v1/players', {
+        fetch('/api/v1/metadata/rename', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedNames)
+            body: JSON.stringify({ date, stream_id: streamId, new_name: newName })
         })
         .then(res => {
-            if (!res.ok) alert('Lỗi khi lưu tên người chơi');
+            if (res.ok) {
+                setEditingStreamId(null);
+                fetchMetadata(); // Refresh to get updated display_name
+            } else {
+                alert('Lỗi khi lưu tên người chơi');
+            }
         })
         .catch(err => console.error('Error saving player name:', err));
     };
@@ -187,7 +189,7 @@ const PlaybackView = () => {
                                     <div className="space-y-1">
                                         <div className="flex items-center gap-3">
                                             <h3 className="text-2xl xs:text-sm font-black font-outfit text-[var(--accent-secondary)] uppercase tracking-tight">
-                                                {playerNames[selectedStream] || selectedStream}
+                                                {replays[selectedDate]?.streams?.[selectedStream]?.display_name || playerNames[selectedStream] || selectedStream}
                                             </h3>
                                             <span className="px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-tighter bg-[var(--bg-card-hover)] text-[var(--text-secondary)] border border-[var(--border-color)]">{selectedStream}</span>
                                         </div>
@@ -342,7 +344,7 @@ const PlaybackView = () => {
                                                     <button 
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            handleSavePlayerName(s_id, tempPlayerName);
+                                                            handleSavePlayerName(selectedDate, s_id, tempPlayerName);
                                                         }}
                                                         className="p-1 hover:bg-white/10 rounded"
                                                     >
@@ -362,13 +364,13 @@ const PlaybackView = () => {
                                                 <>
                                                     <div className="flex items-center gap-2">
                                                         <span className={`font-black font-outfit uppercase tracking-tight text-sm ${selectedStream === s_id ? 'text-[#fff]' : 'text-[var(--text-primary)]'}`}>
-                                                            {playerNames[s_id] || s_id}
+                                                            {meta.display_name || playerNames[s_id] || s_id}
                                                         </span>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setEditingStreamId(s_id);
-                                                                setTempPlayerName(playerNames[s_id] || '');
+                                                                setTempPlayerName(meta.display_name || playerNames[s_id] || '');
                                                             }}
                                                             className={`p-1 rounded opacity-30 hover:opacity-100 transition-opacity ${selectedStream === s_id ? 'hover:bg-black/20' : 'hover:bg-white/10'}`}
                                                         >

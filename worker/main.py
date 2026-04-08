@@ -564,6 +564,35 @@ def update_player_db(player_id):
     finally:
         conn.close()
 
+@app.route('/api/v1/metadata/rename', methods=['POST'])
+def rename_metadata_stream():
+    data = request.json
+    date_str = data.get('date')
+    stream_id = data.get('stream_id')
+    new_name = data.get('new_name')
+
+    if not all([date_str, stream_id, new_name]):
+        return jsonify({"error": "Missing date, stream_id or new_name"}), 400
+
+    meta_file = os.path.join(DATA_DIR, 'metadata.json')
+    if not os.path.exists(meta_file):
+        return jsonify({"error": "Metadata file not found"}), 404
+
+    with meta_lock:
+        with open(meta_file, 'r') as f:
+            meta = json.load(f)
+        
+        if date_str in meta and 'streams' in meta[date_str]:
+            if stream_id in meta[date_str]['streams']:
+                meta[date_str]['streams'][stream_id]['display_name'] = new_name
+                with open(meta_file, 'w') as f:
+                    json.dump(meta, f, indent=4)
+                return jsonify({"status": "Stream renamed in metadata"}), 200
+            else:
+                return jsonify({"error": "Stream ID not found for this date"}), 404
+        else:
+            return jsonify({"error": "Date not found in metadata"}), 404
+
 # ── Core merge workers ────────────────────────────────────────────────────────
 
 def process_one_segment(args):
