@@ -6,14 +6,14 @@ import ScoreboardView from './components/ScoreboardView';
 import PlayerManagementView from './components/PlayerManagementView';
 import AnalyticsView from './components/AnalyticsView';
 import { Video, History, Trophy, Sun, Moon, Menu, X, Monitor, Info, LayoutTemplate, Users, BarChart3 } from 'lucide-react';
-import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Determine current tab based on path for backward compatibility with logic
   const getTabFromPath = (path) => {
+    if (path === '/') return 'about';
     if (path.startsWith('/playback')) return 'playback';
     if (path.startsWith('/players')) return 'players';
     if (path.startsWith('/scores')) return 'scores';
@@ -61,12 +61,12 @@ function App() {
 
     // Update Document Title for SEO/UX
     let title = 'BP AOE Streaming';
+    if (tab === 'about') title = 'Giới Thiệu - BP AOE Streaming';
     if (tab === 'live') title = 'Trực Tiếp - BP AOE Streaming';
     if (tab === 'playback') title = 'Xem Lại - BP AOE Streaming';
     if (tab === 'players') title = 'Cài Đặt Người Chơi - BP AOE Streaming';
     if (tab === 'scores') title = 'Bảng Tỷ Số - BP AOE Streaming';
     if (tab === 'analytics') title = 'Thống Kê - BP AOE Streaming';
-    if (tab === 'about') title = 'Về Chúng Tôi - BP AOE Streaming';
 
     document.title = `${title} | BPGROUP Tournament Dashboard`;
   }, [darkMode, tab]);
@@ -87,10 +87,10 @@ function App() {
 
       {/* Mobile Top Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[var(--bg-sidebar)] border-b border-[var(--border-color)] flex items-center justify-between px-6 z-30 shadow-sm transition-colors duration-300">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <Trophy className="text-[#f1812e]" size={20} />
           <span className="font-black font-outfit text-sm tracking-tight text-[var(--accent-secondary)] uppercase">BP AOE</span>
-        </div>
+        </Link>
         <button
           onClick={toggleSidebar}
           className="p-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-secondary)] cursor-pointer hover:text-[#f1812e] transition-colors"
@@ -112,12 +112,12 @@ function App() {
       `}>
         <div className={`p-8 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'} whitespace-nowrap overflow-hidden`}>
           <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <Trophy className="text-[#f1812e]" size={28} />
               <h2 className="text-xl font-black font-outfit tracking-tight text-[var(--accent-secondary)] leading-none uppercase">
                 BP AOE
               </h2>
-            </div>
+            </Link>
 
             <button
               onClick={toggleSidebar}
@@ -132,14 +132,14 @@ function App() {
         </div>
 
         {/* Brand for Mobile Sidebar */}
-        <div className={`p-6 md:hidden border-b border-[var(--border-color)] mb-4 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="flex items-center gap-3">
-            <Trophy className="text-[#f1812e]" size={24} />
-            <span className="text-lg font-black font-outfit text-[var(--accent-secondary)] uppercase">BP AOE Dashboard</span>
-          </div>
-        </div>
+        <Link to="/" className={`p-6 md:hidden border-b border-[var(--border-color)] mb-4 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'} flex items-center gap-3 hover:opacity-80 transition-opacity`}>
+          <Trophy className="text-[#f1812e]" size={24} />
+          <span className="text-lg font-black font-outfit text-[var(--accent-secondary)] uppercase">BP AOE Dashboard</span>
+        </Link>
 
         <nav className={`flex-1 px-4 space-y-2 mt-4 md:mt-0 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
+
+
           <NavLink
             to="/live"
             className={({ isActive }) => `w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${isActive
@@ -170,20 +170,7 @@ function App() {
             {tab === 'playback' && <div className="w-1.5 h-1.5 rounded-full bg-[#f1812e] shadow-[0_0_8px_#f1812e]" />}
           </NavLink>
 
-          <NavLink
-            to="/about"
-            className={({ isActive }) => `w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${isActive
-                ? 'bg-[var(--bg-main)] text-[#f1812e] shadow-md border border-[var(--border-color)]'
-                : 'text-[var(--text-secondary)] hover:text-[#f1812e] hover:bg-[var(--bg-main)]'
-              }`
-            }
-          >
-            <div className="flex items-center gap-3">
-              <Info size={18} />
-              <span>Về chúng tôi</span>
-            </div>
-            {tab === 'about' && <div className="w-1.5 h-1.5 rounded-full bg-[#f1812e] shadow-[0_0_8px_#f1812e]" />}
-          </NavLink>
+
 
           <div className="pt-4 pb-2 px-4">
             <div className="h-px bg-[var(--border-color)] opacity-50 mb-4" />
@@ -265,14 +252,14 @@ function App() {
         )}
         <div className="min-h-full p-6 md:p-12 pb-24 md:pb-12">
           <Routes>
+            <Route path="/" element={<AboutUs />} />
             <Route path="/live" element={<LiveView />} />
             <Route path="/playback" element={<PlaybackView />} />
             <Route path="/players" element={<PlayerManagementView />} />
             <Route path="/scores" element={<ScoreboardView />} />
             <Route path="/analytics" element={<AnalyticsView />} />
-            <Route path="/about" element={<AboutUs />} />
-            <Route path="/" element={<Navigate to="/live" replace />} />
-            <Route path="*" element={<Navigate to="/live" replace />} />
+            <Route path="/about" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </main>

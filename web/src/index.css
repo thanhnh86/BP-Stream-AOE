@@ -92,3 +92,39 @@ h3 { font-size: 18px; } /* Header size 18-20px */
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; transform: scale(1); border-color: rgba(241, 129, 46, 1); }
+  50% { opacity: 0.4; transform: scale(1.02); border-color: rgba(241, 129, 46, 0.2); }
+}
+
+.animate-blink {
+  animation: blink 1s infinite ease-in-out;
+}
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; transform: scale(1.2); }
+  50% { opacity: 0.1; transform: scale(0.6); }
+}
+
+.animate-dot-blink {
+  animation: dot-blink 1s infinite ease-in-out;
+}
+
+@keyframes glow-orange {
+  0%, 100% { box-shadow: 0 0 15px rgba(241, 129, 46, 0.4), 0 0 30px rgba(241, 129, 46, 0.2); }
+  50% { box-shadow: 0 0 35px rgba(241, 129, 46, 0.9), 0 0 60px rgba(241, 129, 46, 0.5); }
+}
+
+.animate-glow-orange {
+  animation: glow-orange 1s infinite ease-in-out;
+}
+
+@keyframes glow-white {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.1), 0 0 20px rgba(255, 255, 255, 0.05); }
+  50% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.3), 0 0 35px rgba(255, 255, 255, 0.1); }
+}
+
+.animate-glow-white {
+  animation: glow-white 2s infinite ease-in-out;
+}

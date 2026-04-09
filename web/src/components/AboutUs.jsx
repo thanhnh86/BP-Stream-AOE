@@ -1,5 +1,6 @@
 import React from 'react';
-import { Target, Flag, Rocket, CheckCircle2, Users, Shield, Zap, Globe, Award, Camera, Cpu, Terminal, Laptop, HelpCircle } from 'lucide-react';
+import { Target, Flag, Rocket, CheckCircle2, Users, Shield, Zap, Globe, Award, Camera, Cpu, Terminal, Laptop, HelpCircle, Video, History } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const AboutUs = () => {
   return (
@@ -20,14 +21,35 @@ const AboutUs = () => {
           <h2 className="text-2xl md:text-3xl font-black font-outfit text-white mb-3 md:mb-5 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] uppercase tracking-tighter leading-none">
             BestPrice <span className="text-[#f1812e]">Tech Hub</span>
           </h2>
-          <p className="text-sm md:text-lg lg:text-xl text-white max-w-3xl font-bold leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] line-clamp-3 md:line-clamp-none">
+          <p className="text-sm md:text-lg lg:text-xl text-white max-w-3xl font-bold leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
             Tiên phong ứng dụng công nghệ truyền tải hình ảnh và phân tích dữ liệu thời gian thực cho các hoạt động văn hóa - thể thao nội bộ tại Công ty CP Công nghệ Du lịch Best Price.
           </p>
         </div>
       </section>
 
+      {/* Action Buttons Section - Outline Style and Grid Aligned */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mx-4 md:mx-0">
+        <Link 
+          to="/live" 
+          className="flex items-center justify-center gap-3 px-8 py-5 md:py-10 rounded-[1.5rem] md:rounded-[2.5rem] bg-transparent border-4 border-[#f1812e] text-[#f1812e] text-lg md:text-3xl font-black font-outfit uppercase tracking-wider hover:bg-[#f1812e] hover:text-white active:scale-95 transition-all animate-blink animate-glow-orange group shadow-lg"
+        >
+          <div className="relative">
+            <Video size={32} className="md:w-12 md:h-12 group-hover:scale-110 transition-transform" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 md:w-4 md:h-4 bg-red-500 rounded-full border-2 border-white animate-dot-blink shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>
+          </div>
+          Xem trực tiếp ngay
+        </Link>
+        <Link 
+          to="/playback" 
+          className="flex items-center justify-center gap-3 px-8 py-5 md:py-10 rounded-[1.5rem] md:rounded-[2.5rem] bg-transparent border-4 border-[var(--text-secondary)] text-[var(--text-secondary)] text-lg md:text-3xl font-black font-outfit uppercase tracking-wider hover:bg-[var(--text-secondary)] hover:text-white active:scale-95 transition-all group shadow-lg"
+        >
+          <History size={32} className="md:w-12 md:h-12 group-hover:rotate-[-30deg] transition-transform" />
+          Xem lại
+        </Link>
+      </section>
+
       {/* Main Vision Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-start mt-8 md:mt-16">
         <div className="lg:col-span-7 space-y-8 md:space-y-12">
           <section>
             <h3 className="text-xl md:text-2xl font-black font-outfit text-[var(--accent-secondary)] mb-6 md:mb-8 flex items-center gap-3 md:gap-4">
@@ -81,7 +103,7 @@ const AboutUs = () => {
         </div>
 
         <aside className="lg:col-span-5 space-y-6 md:space-y-8">
-          <div className="bg-[#f1812e] rounded-[1.5rem] md:rounded-[2rem] p-8 md:p-10 text-white shadow-xl relative overflow-hidden group">
+          <div className="bg-[#1E293B] rounded-[1.5rem] md:rounded-[2rem] p-8 md:p-10 text-white shadow-xl relative overflow-hidden group border border-white/5">
             <div className="absolute -right-6 -bottom-6 opacity-20 transform group-hover:scale-125 transition-transform duration-700 pointer-events-none">
               <Award size={150} className="md:w-[250px] md:h-[250px]" />
             </div>
