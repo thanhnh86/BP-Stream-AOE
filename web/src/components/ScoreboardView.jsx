@@ -398,8 +398,10 @@ const ScoreboardView = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="px-2.5 py-1 bg-[#f1812e]/10 rounded-full text-[#f1812e] text-[9px] font-black uppercase tracking-tighter">
-                    {scores[date].length} Kèo đấu
+                  <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-500/10 text-orange-500 rounded-xl border border-orange-500/20">
+                    <span className="text-[10px] font-black opacity-60 uppercase tracking-widest">TỔNG</span>
+                    <span className="text-sm font-black font-outfit">{scores[date].length}</span>
+                    <span className="text-[10px] font-black opacity-60 uppercase tracking-widest">TRẬN ĐẤU</span>
                   </div>
                 </div>
               </div>
