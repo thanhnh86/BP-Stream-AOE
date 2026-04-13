@@ -5,16 +5,35 @@ import subprocess
 from config import LOG_FILE
 
 meta_lock = threading.Lock()
+recordings_lock = threading.Lock()
 
 def get_recordings():
     if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, 'r') as f:
-            return json.load(f)
+        with recordings_lock:
+            try:
+                with open(LOG_FILE, 'r') as f:
+                    return json.load(f)
+            except Exception:
+                return {}
     return {}
 
 def save_recordings(data):
-    with open(LOG_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
+    with recordings_lock:
+        with open(LOG_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+
+def delete_recordings_by_date(date_str):
+    with recordings_lock:
+        if os.path.exists(LOG_FILE):
+            try:
+                with open(LOG_FILE, 'r') as f:
+                    data = json.load(f)
+                if date_str in data:
+                    del data[date_str]
+                    with open(LOG_FILE, 'w') as f:
+                        json.dump(data, f, indent=4)
+            except Exception as e:
+                print(f"Error cleaning up recordings for {date_str}: {e}")
 
 def save_meta(meta_file, meta):
     with meta_lock:

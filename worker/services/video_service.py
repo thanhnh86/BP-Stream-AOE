@@ -103,9 +103,20 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
 
         print(f"[{s_id}] ✓ HLS: {total_duration:.1f}s ({total_duration/60:.2f} phút)")
 
+        # Xóa các file TS tạm
         for ts_path in ts_files:
             if os.path.exists(ts_path):
                 os.remove(ts_path)
+        
+        # Xóa các file FLV gốc để tiết kiệm dung lượng (theo yêu cầu Hướng 2)
+        print(f"[{s_id}] Đang giải phóng dung lượng: Xóa {len(valid_files)} file FLV gốc...")
+        for flv_path in valid_files:
+            if os.path.exists(flv_path):
+                try:
+                    os.remove(flv_path)
+                except Exception as e:
+                    print(f"[{s_id}] Lỗi khi xóa file gốc {flv_path}: {e}")
+
         concat_txt = os.path.join(ts_dir, 'concat.txt')
         if os.path.exists(concat_txt):
             os.remove(concat_txt)
@@ -196,6 +207,10 @@ def do_merge(date_str):
         progress_percent=100,
         progress_text="Đã hoàn thành tổng hợp toàn bộ."
     )
+
+    # Dọn dẹp recordings.json cho ngày này vì các file gốc đã bị xóa (An toàn luồng)
+    from utils import delete_recordings_by_date
+    delete_recordings_by_date(date_str)
 
     print(f"\n{'='*60}")
     print(f"=== Merge hoàn tất cho ngày {date_str} ===")
