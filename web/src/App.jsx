@@ -5,8 +5,9 @@ import AboutUs from './components/AboutUs';
 import ScoreboardView from './components/ScoreboardView';
 import PlayerManagementView from './components/PlayerManagementView';
 import AnalyticsView from './components/AnalyticsView';
-import { Video, History, Trophy, Sun, Moon, Menu, X, Monitor, Info, LayoutTemplate, Users, BarChart3 } from 'lucide-react';
+import { Video, History, Trophy, Sun, Moon, Menu, X, Monitor, Info, LayoutTemplate, Users, BarChart3, AlertCircle } from 'lucide-react';
 import { Routes, Route, NavLink, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import NotFound from './components/NotFound';
 
 function App() {
   const location = useLocation();
@@ -259,7 +260,7 @@ function App() {
             <Route path="/scores" element={<ScoreboardView />} />
             <Route path="/analytics" element={<AnalyticsView />} />
             <Route path="/about" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
       </main>
