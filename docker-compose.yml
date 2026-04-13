@@ -46,6 +46,8 @@ services:
       - ENV=${ENV:-local}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports:
+      - "5001:5001"
     networks:
       - srs-network
     depends_on:
@@ -76,7 +78,7 @@ volumes:
   srs_data:
     driver: local
     # For PRODUCTION, uncomment driver_opts below and set to actual path
-    # driver_opts:
-    #   type: 'none'
-    #   o: 'bind'
-    #   device: '/stream/data'
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: '/stream/data'
