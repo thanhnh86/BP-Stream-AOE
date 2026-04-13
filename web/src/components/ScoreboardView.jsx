@@ -228,7 +228,7 @@ const ScoreboardView = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-32">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h2 className="text-3xl font-black font-outfit text-[var(--accent-secondary)] tracking-tight uppercase leading-none mb-3">
             Bảng tỷ số
@@ -238,33 +238,48 @@ const ScoreboardView = () => {
           </div>
         </div>
         
-        <button
-          onClick={() => {
-            if (isAdding) {
-              setIsAdding(false);
-              return;
-            }
-            setAuthModal({
-              isOpen: true,
-              title: 'Thêm kết quả thi đấu',
-              description: 'Để đảm bảo dữ liệu giải đấu được chính xác và công bằng, vui lòng nhập mật khẩu quản trị để mở form nhập kết quả.',
-              onConfirm: (password) => {
-                if (password === '1234567890') {
-                  setAuthModal(prev => ({ ...prev, isOpen: false }));
-                  setIsAdding(true);
-                } else {
-                  alert('Mật khẩu không đúng!');
-                }
+        <div className="flex items-center gap-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border-color)] px-5 py-3 rounded-2xl flex items-center gap-4 shadow-xl hover:border-[#f1812e]/30 transition-all group">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-[#f1812e] group-hover:scale-110 transition-transform">
+              <Trophy size={20} />
+            </div>
+            <div>
+               <div className="text-[10px] font-black opacity-30 uppercase tracking-[0.2em] leading-none mb-1.5">Tổng số trận</div>
+               <div className="text-2xl font-black font-outfit leading-none flex items-baseline gap-1">
+                 {Object.values(scores).flat().length}
+                 <span className="text-xs opacity-20">TRẬN</span>
+               </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              if (isAdding) {
+                setIsAdding(false);
+                return;
               }
-            });
-          }}
-          className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl hover:scale-105 active:scale-95 ${
-            isAdding ? 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border-color)]' : 'bg-[#f1812e] text-white'
-          }`}
-        >
-          {isAdding ? <X size={20} /> : <Plus size={20} />}
-          <span>{isAdding ? (editingId ? 'Hủy sửa' : 'Đóng') : 'Thêm / Sửa kết quả'}</span>
-        </button>
+              setAuthModal({
+                isOpen: true,
+                title: 'Thêm kết quả thi đấu',
+                description: 'Để đảm bảo dữ liệu giải đấu được chính xác và công bằng, vui lòng nhập mật khẩu quản trị để mở form nhập kết quả.',
+                onConfirm: (password) => {
+                  if (password === '1234567890') {
+                    setAuthModal(prev => ({ ...prev, isOpen: false }));
+                    setIsAdding(true);
+                  } else {
+                    alert('Mật khẩu không đúng!');
+                  }
+                }
+              });
+            }}
+            className={`flex items-center gap-2 py-4 px-6 rounded-2xl font-bold transition-all shadow-xl group ${isAdding ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
+          >
+            {isAdding ? <X size={20} /> : <Plus size={20} className="group-hover:rotate-90 transition-transform" />}
+            <span className="uppercase tracking-tight text-sm">
+              {isAdding ? 'Hủy bỏ' : 'Thêm / Sửa kết quả'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {isAdding && (
