@@ -4,9 +4,16 @@
 PYTHON_VENV = .venv
 PYTHON = $(PYTHON_VENV)/bin/python3
 PIP = $(PYTHON_VENV)/bin/pip
-DATA_DIR ?= $(PWD)/mysql_data_dev
+# Default Configuration
+DATA_DIR ?= $(PWD)/srs_data
+DB_HOST ?= 127.0.0.1
+DB_PORT ?= 3306
+DB_USER ?= root
+DB_PASSWORD ?= root
+DB_NAME ?= aoe_scoreboard
 
-# Include local .env if exists
+# Include local .env files (values here will override defaults)
+-include .env
 -include .env.dev
 
 help:
@@ -36,12 +43,12 @@ dev-infra:
 
 dev-api: $(PYTHON_VENV)
 	@echo "Starting Flask API service..."
-	export DATA_DIR=$${DATA_DIR:-$(PWD)/srs_data} && \
-	export DB_HOST=$${DB_HOST:-127.0.0.1} && \
-	export DB_PORT=$${DB_PORT:-3306} && \
-	export DB_USER=$${DB_USER:-root} && \
-	export DB_PASSWORD=$${DB_PASSWORD:-root} && \
-	export DB_NAME=$${DB_NAME:-aoe_scoreboard} && \
+	export DATA_DIR=$(DATA_DIR) && \
+	export DB_HOST=$(DB_HOST) && \
+	export DB_PORT=$(DB_PORT) && \
+	export DB_USER=$(DB_USER) && \
+	export DB_PASSWORD=$(DB_PASSWORD) && \
+	export DB_NAME=$(DB_NAME) && \
 	cd worker && ../$(PYTHON) app.py
 
 dev-dash:
