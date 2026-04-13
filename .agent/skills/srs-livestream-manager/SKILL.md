@@ -35,8 +35,17 @@ The system is a multi-container Docker environment:
 ### 4. Frontend & Analytics
 - **Analytics Dashboard**: Uses SVG-based visualizations. Includes a Heatmap/Bar chart for frequency and a Donut chart for category distribution.
 - **Dynamic Categories**: Support asymmetrical matches (e.g., 3-4, 1-2). Categories are named dynamically based on team sizes.
-- **Professional Styling**: Maintain high-contrast, premium dark-mode visuals using `var(--accent-secondary)` and `f1812e` orange themes. 
-- **Light/Dark Mode Support**: Always design components ensuring accessibility and clarity in both light and dark modes. Use CSS variables defined in `index.css` for background and text colors to maintain consistency.
+- **Professional Styling**: Maintain high-contrast, premium dark-mode visuals using `var(--accent-secondary)` and `f1812e` orange themes.
+- **UI Consistency & UX Patterns**:
+    - **Modals**: Always implement `Escape` key and "Click Outside" handlers for closing modals/popups. 
+    - **Formatting**: Avoid forced `uppercase` for names to preserve original casing. Use high-contrast colors (80-90% opacity) for primary text.
+    - **Win/Loss States**: Use standard Green (Win) and Red (Loss) themes with subtle background tints (`/5` or `/10`) and solid borders (`/20`).
+    - **Contextual Highlighting**: In history views, always highlight the specific player's name being viewed (e.g., using `text-[#f1812e]` and `font-black`) to distinguish them from teammates.
+
+### 5. Scoreboard & Data Management
+- **Editable Records**: All match scores must be editable. Use a `PUT /api/v1/scores/:id` endpoint that refreshes both the `matches` table and `match_participants`.
+- **Bulk Operations**: Support bulk date updates (moving all matches from one date to another) to handle data entry errors efficiently using `POST /api/v1/scores/bulk-update-date`.
+- **Security vs. UX**: Avoid redundant password prompts for individual record deletions within a session to improve operator efficiency. Use standard `window.confirm` for destructive safety.
 
 ## Operations
 - **Remote Execution**: All docker commands MUST be executed on the production server via SSH.
