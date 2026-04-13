@@ -20,6 +20,31 @@ Dự án livestream và xem lại AOE nội bộ BestPrice.
 3. **Truy cập Dashboard**:
    - Mở trình duyệt: `http://<server_ip>`
 
+## Môi trường Phát triển (Local Development)
+
+Dự án hỗ trợ `Makefile` để giúp bạn phát triển và kiểm thử dễ dàng mà không cần dùng Docker cho Worker/Dashboard.
+
+1. **Cài đặt thư viện**:
+   ```bash
+   make install
+   ```
+2. **Khởi chạy Hạ tầng (DB & SRS)**:
+   ```bash
+   make dev-infra
+   ```
+3. **Chạy Backend Worker (Python Flask)**:
+   ```bash
+   make dev-api
+   ```
+4. **Chạy Frontend Dashboard (React/Vite)**:
+   ```bash
+   make dev-dash
+   ```
+5. **Dọn dẹp môi trường khi xong việc**:
+   ```bash
+   make clean
+   ```
+
 ## Tính năng
 - **Live Monitoring**: Xem đồng thời 8 màn hình của 8 người chơi.
 - **Auto Replay**: Tự động lưu video sau khi kết thúc stream.

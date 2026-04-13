@@ -1,0 +1,27 @@
+services:
+  srs:
+    image: ossrs/srs:latest
+    container_name: srs-dev
+    ports:
+      - "1935:1935" # RTMP Stream inbound
+      - "1985:1985" # SRS HTTP API
+      - "8080:8080" # HLS/HTTP-FLV Server
+    volumes:
+      - ./srs.conf:/usr/local/srs/conf/srs.conf
+      - ./srs_data:/usr/local/srs/objs/nginx/html/dvr
+    command: ["./objs/srs", "-c", "conf/srs.conf"]
+    restart: on-failure
+
+  db:
+    image: mariadb:latest
+    container_name: srs-db-dev
+    restart: on-failure
+    ports:
+      - "3307:3306" # Expose DB port for local backend access
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: aoe_scoreboard
+      MARIADB_USER: aoe_user
+      MARIADB_PASSWORD: aoe_password
+    volumes:
+      - ./mysql_data_dev:/var/lib/mysql

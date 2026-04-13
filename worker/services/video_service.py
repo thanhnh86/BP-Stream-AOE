@@ -1,0 +1,202 @@
+import os
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from config import DATA_DIR, MAX_STREAM_WORKERS, MAX_SEG_WORKERS
+from utils import (
+    convert_flv_to_ts, get_duration, run_ffmpeg, 
+    update_meta_field, save_meta, meta_lock, get_recordings
+)
+
+def process_one_segment(args):
+    j, flv_path, ts_path = args
+    success, stderr = convert_flv_to_ts(flv_path, ts_path)
+    if not success:
+        print(f"  ✗ Segment {j+1} lỗi ({os.path.basename(flv_path)}):\n{stderr[-300:]}")
+        return None
+    duration = get_duration(ts_path)
+    if duration < 1.0:
+        print(f"  ✗ Segment {j+1} quá ngắn ({duration:.1f}s) — bỏ qua")
+        if os.path.exists(ts_path):
+            os.remove(ts_path)
+        return None
+    print(f"  ✓ Segment {j+1}: {duration:.1f}s  ({os.path.basename(flv_path)})")
+    return (j, ts_path, duration)
+
+def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_start, machine_progress_step):
+    replay_dir = os.path.join(DATA_DIR, 'replays', date_str, s_id)
+    ts_dir     = os.path.join(replay_dir, 'ts_tmp')
+    os.makedirs(ts_dir, exist_ok=True)
+
+    hls_output = os.path.join(replay_dir, 'index.m3u8')
+
+    try:
+        valid_files = sorted([f for f in files if os.path.exists(f)])
+        skipped = len(files) - len(valid_files)
+        if skipped:
+            print(f"[{s_id}] WARNING: Bỏ qua {skipped} segment không có trên disk")
+        if not valid_files:
+            raise RuntimeError("Không tìm thấy segment nào trên disk")
+
+        print(f"\n[{s_id}] Bắt đầu {len(valid_files)} segments "
+              f"(song song {MAX_SEG_WORKERS} file cùng lúc)...")
+
+        update_meta_field(meta, meta_file, date_str,
+            progress_text=f"[{s_id}] Convert {len(valid_files)} segments...",
+            progress_percent=machine_progress_start + int(machine_progress_step * 0.05)
+        )
+
+        seg_args = [
+            (j, flv_path, os.path.join(ts_dir, f"seg_{j:04d}.ts"))
+            for j, flv_path in enumerate(valid_files)
+        ]
+
+        results = [None] * len(seg_args)
+        with ThreadPoolExecutor(max_workers=MAX_SEG_WORKERS) as seg_pool:
+            future_map = {
+                seg_pool.submit(process_one_segment, arg): arg[0]
+                for arg in seg_args
+            }
+            done_count = 0
+            for future in as_completed(future_map):
+                idx    = future_map[future]
+                result = future.result()
+                if result:
+                    results[idx] = result
+                done_count += 1
+                update_meta_field(meta, meta_file, date_str,
+                    progress_text=f"[{s_id}] Convert {done_count}/{len(seg_args)} segments...",
+                    progress_percent=machine_progress_start + int(
+                        machine_progress_step * 0.6 * (done_count / len(seg_args))
+                    )
+                )
+
+        ts_files = [r[1] for r in results if r is not None]
+        total_duration = sum(r[2] for r in results if r is not None)
+
+        if not ts_files:
+            raise RuntimeError("Không convert được bất kỳ segment nào sang TS")
+
+        print(f"[{s_id}] Convert xong: {len(ts_files)}/{len(valid_files)} segments hợp lệ")
+
+        update_meta_field(meta, meta_file, date_str,
+            progress_text=f"[{s_id}] Tạo HLS...",
+            progress_percent=machine_progress_start + int(machine_progress_step * 0.70)
+        )
+
+        list_file = os.path.join(ts_dir, 'concat.txt')
+        with open(list_file, 'w') as f:
+            for ts_path in ts_files:
+                f.write(f"file '{ts_path}'\n")
+
+        success, stderr = run_ffmpeg([
+            'ffmpeg', '-y',
+            '-f', 'concat', '-safe', '0', '-i', list_file,
+            '-c', 'copy',
+            '-hls_time', '5',
+            '-hls_list_size', '0',
+            '-hls_flags', 'independent_segments',
+            '-hls_segment_filename', os.path.join(replay_dir, 'segment_%d.ts'),
+            hls_output
+        ])
+        if not success:
+            raise RuntimeError(f"Tạo HLS thất bại:\n{stderr[-500:]}")
+
+        print(f"[{s_id}] ✓ HLS: {total_duration:.1f}s ({total_duration/60:.2f} phút)")
+
+        for ts_path in ts_files:
+            if os.path.exists(ts_path):
+                os.remove(ts_path)
+        concat_txt = os.path.join(ts_dir, 'concat.txt')
+        if os.path.exists(concat_txt):
+            os.remove(concat_txt)
+        try:
+            os.rmdir(ts_dir)
+        except Exception:
+            pass
+
+        with meta_lock:
+            meta[date_str]["streams"][s_id] = {
+                "hls":              f"replays/{date_str}/{s_id}/index.m3u8",
+                "duration_minutes": round(total_duration / 60, 2),
+                "file":             f"replays/{date_str}/{s_id}/index.m3u8"
+            }
+
+        print(f"[{s_id}] ✓ Hoàn thành: {round(total_duration/60, 2)} phút")
+        return s_id, True, None
+
+    except Exception as e:
+        print(f"[{s_id}] ✗ Lỗi: {e}")
+        with meta_lock:
+            meta[date_str]["streams"][s_id] = {"error": str(e)}
+        update_meta_field(meta, meta_file, date_str,
+            progress_text=f"Lỗi tại {s_id}: {str(e)}"
+        )
+        return s_id, False, str(e)
+
+
+def do_merge(date_str):
+    recordings = get_recordings()
+    if date_str not in recordings:
+        print(f"No recordings found for date: {date_str}")
+        return
+
+    stream_recordings = {}
+    for r in recordings[date_str]:
+        s_id = r['stream']
+        if s_id not in stream_recordings:
+            stream_recordings[s_id] = []
+        stream_recordings[s_id].append(r['file'])
+
+    meta_file = os.path.join(DATA_DIR, 'metadata.json')
+    meta = {}
+    if os.path.exists(meta_file):
+        with open(meta_file, 'r') as f:
+            try:
+                meta = json.load(f)
+            except Exception:
+                meta = {}
+
+    if date_str not in meta:
+        meta[date_str] = {"streams": {}, "status": "processing"}
+    else:
+        meta[date_str]["status"] = "processing"
+        if "streams" not in meta[date_str]:
+            meta[date_str]["streams"] = {}
+
+    save_meta(meta_file, meta)
+
+    total_streams = len(stream_recordings)
+    stream_list   = list(stream_recordings.items())
+
+    print(f"\n{'='*60}")
+    print(f"Merge {total_streams} streams — ngày {date_str}")
+    print(f"Parallel: {MAX_STREAM_WORKERS} stream × {MAX_SEG_WORKERS} seg "
+          f"= tối đa {MAX_STREAM_WORKERS * MAX_SEG_WORKERS} FFmpeg processes")
+    print(f"{'='*60}\n")
+
+    with ThreadPoolExecutor(max_workers=MAX_STREAM_WORKERS) as stream_pool:
+        future_map = {}
+        for i, (s_id, files) in enumerate(stream_list):
+            machine_progress_start = int((i / total_streams) * 100)
+            machine_progress_step  = int(100 / total_streams)
+            future = stream_pool.submit(
+                process_one_stream,
+                s_id, files, date_str, meta, meta_file,
+                machine_progress_start, machine_progress_step
+            )
+            future_map[future] = s_id
+
+        for future in as_completed(future_map):
+            s_id, success, err = future.result()
+            status = "✓ DONE" if success else f"✗ FAIL: {err}"
+            print(f"[{status}] Stream {s_id}")
+
+    update_meta_field(meta, meta_file, date_str,
+        status="completed",
+        progress_percent=100,
+        progress_text="Đã hoàn thành tổng hợp toàn bộ."
+    )
+
+    print(f"\n{'='*60}")
+    print(f"=== Merge hoàn tất cho ngày {date_str} ===")
+    print(f"{'='*60}\n")
