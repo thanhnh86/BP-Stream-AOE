@@ -215,9 +215,7 @@ const PlaybackView = () => {
                     <div className="relative aspect-video rounded-3xl overflow-hidden bg-black border border-[var(--border-color)] shadow-2xl">
                         {currentVideo ? (
                             <VideoPlayer
-                                url={currentVideo.hls 
-                                    ? (currentVideo.hls.startsWith('/') ? currentVideo.hls : `/${currentVideo.hls}`) 
-                                    : (currentVideo.file.startsWith('/') ? currentVideo.file : `/${currentVideo.file}`)}
+                                url={currentVideo.hls ? `/replays/${currentVideo.hls}` : `/replays/${currentVideo.file}`}
                             />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center gap-6 text-[var(--text-secondary)] bg-[var(--bg-card)]">
