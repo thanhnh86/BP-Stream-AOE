@@ -40,10 +40,42 @@ def save_meta(meta_file, meta):
         with open(meta_file, 'w') as f:
             json.dump(meta, f, indent=4)
 
-def update_meta_field(meta, meta_file, date_str, **kwargs):
+def update_meta_field(meta_file, date_str, **kwargs):
     with meta_lock:
+        meta = {}
+        if os.path.exists(meta_file):
+            try:
+                with open(meta_file, 'r') as f:
+                    meta = json.load(f)
+            except Exception:
+                pass
+        
+        if date_str not in meta:
+            meta[date_str] = {"streams": {}, "status": "processing"}
+            
         for k, v in kwargs.items():
             meta[date_str][k] = v
+            
+        with open(meta_file, 'w') as f:
+            json.dump(meta, f, indent=4)
+
+def update_stream_meta(meta_file, date_str, s_id, stream_data):
+    with meta_lock:
+        meta = {}
+        if os.path.exists(meta_file):
+            try:
+                with open(meta_file, 'r') as f:
+                    meta = json.load(f)
+            except Exception:
+                pass
+                
+        if date_str not in meta:
+            meta[date_str] = {"streams": {}, "status": "processing"}
+        if "streams" not in meta[date_str]:
+            meta[date_str]["streams"] = {}
+            
+        meta[date_str]["streams"][s_id] = stream_data
+        
         with open(meta_file, 'w') as f:
             json.dump(meta, f, indent=4)
 

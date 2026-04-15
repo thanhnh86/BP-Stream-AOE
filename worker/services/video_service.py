@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import DATA_DIR, MAX_STREAM_WORKERS, MAX_SEG_WORKERS
 from utils import (
     convert_flv_to_ts, get_duration, run_ffmpeg, 
-    update_meta_field, save_meta, meta_lock, get_recordings
+    update_meta_field, update_stream_meta, save_meta, meta_lock, get_recordings
 )
 
 def process_one_segment(args):
@@ -22,7 +22,7 @@ def process_one_segment(args):
     print(f"  ✓ Segment {j+1}: {duration:.1f}s  ({os.path.basename(flv_path)})")
     return (j, ts_path, duration)
 
-def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_start, machine_progress_step):
+def process_one_stream(s_id, files, date_str, meta_file, machine_progress_start, machine_progress_step):
     replay_dir = os.path.join(DATA_DIR, 'replays', date_str, s_id)
     ts_dir     = os.path.join(replay_dir, 'ts_tmp')
     os.makedirs(ts_dir, exist_ok=True)
@@ -40,7 +40,7 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
         print(f"\n[{s_id}] Bắt đầu {len(valid_files)} segments "
               f"(song song {MAX_SEG_WORKERS} file cùng lúc)...")
 
-        update_meta_field(meta, meta_file, date_str,
+        update_meta_field(meta_file, date_str,
             progress_text=f"[{s_id}] Convert {len(valid_files)} segments...",
             progress_percent=machine_progress_start + int(machine_progress_step * 0.05)
         )
@@ -63,7 +63,7 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
                 if result:
                     results[idx] = result
                 done_count += 1
-                update_meta_field(meta, meta_file, date_str,
+                update_meta_field(meta_file, date_str,
                     progress_text=f"[{s_id}] Convert {done_count}/{len(seg_args)} segments...",
                     progress_percent=machine_progress_start + int(
                         machine_progress_step * 0.6 * (done_count / len(seg_args))
@@ -78,7 +78,7 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
 
         print(f"[{s_id}] Convert xong: {len(ts_files)}/{len(valid_files)} segments hợp lệ")
 
-        update_meta_field(meta, meta_file, date_str,
+        update_meta_field(meta_file, date_str,
             progress_text=f"[{s_id}] Tạo HLS...",
             progress_percent=machine_progress_start + int(machine_progress_step * 0.70)
         )
@@ -125,21 +125,19 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
         except Exception:
             pass
 
-        with meta_lock:
-            meta[date_str]["streams"][s_id] = {
-                "hls":              f"replays/{date_str}/{s_id}/index.m3u8",
-                "duration_minutes": round(total_duration / 60, 2),
-                "file":             f"replays/{date_str}/{s_id}/index.m3u8"
-            }
+        update_stream_meta(meta_file, date_str, s_id, {
+            "hls":              f"replays/{date_str}/{s_id}/index.m3u8",
+            "duration_minutes": round(total_duration / 60, 2),
+            "file":             f"replays/{date_str}/{s_id}/index.m3u8"
+        })
 
         print(f"[{s_id}] ✓ Hoàn thành: {round(total_duration/60, 2)} phút")
         return s_id, True, None
 
     except Exception as e:
         print(f"[{s_id}] ✗ Lỗi: {e}")
-        with meta_lock:
-            meta[date_str]["streams"][s_id] = {"error": str(e)}
-        update_meta_field(meta, meta_file, date_str,
+        update_stream_meta(meta_file, date_str, s_id, {"error": str(e)})
+        update_meta_field(meta_file, date_str,
             progress_text=f"Lỗi tại {s_id}: {str(e)}"
         )
         return s_id, False, str(e)
@@ -159,22 +157,7 @@ def do_merge(date_str):
         stream_recordings[s_id].append(r['file'])
 
     meta_file = os.path.join(DATA_DIR, 'metadata.json')
-    meta = {}
-    if os.path.exists(meta_file):
-        with open(meta_file, 'r') as f:
-            try:
-                meta = json.load(f)
-            except Exception:
-                meta = {}
-
-    if date_str not in meta:
-        meta[date_str] = {"streams": {}, "status": "processing"}
-    else:
-        meta[date_str]["status"] = "processing"
-        if "streams" not in meta[date_str]:
-            meta[date_str]["streams"] = {}
-
-    save_meta(meta_file, meta)
+    update_meta_field(meta_file, date_str, status="processing")
 
     total_streams = len(stream_recordings)
     stream_list   = list(stream_recordings.items())
@@ -192,7 +175,7 @@ def do_merge(date_str):
             machine_progress_step  = int(100 / total_streams)
             future = stream_pool.submit(
                 process_one_stream,
-                s_id, files, date_str, meta, meta_file,
+                s_id, files, date_str, meta_file,
                 machine_progress_start, machine_progress_step
             )
             future_map[future] = s_id
@@ -202,7 +185,7 @@ def do_merge(date_str):
             status = "✓ DONE" if success else f"✗ FAIL: {err}"
             print(f"[{status}] Stream {s_id}")
 
-    update_meta_field(meta, meta_file, date_str,
+    update_meta_field(meta_file, date_str,
         status="completed",
         progress_percent=100,
         progress_text="Đã hoàn thành tổng hợp toàn bộ."

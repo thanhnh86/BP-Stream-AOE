@@ -15,9 +15,13 @@ def get_metadata():
     recordings = get_recordings()
     meta_file = os.path.join(DATA_DIR, 'metadata.json')
     meta = {}
-    if os.path.exists(meta_file):
-        with open(meta_file, 'r') as f:
-            meta = json.load(f)
+    with meta_lock:
+        if os.path.exists(meta_file):
+            try:
+                with open(meta_file, 'r') as f:
+                    meta = json.load(f)
+            except Exception:
+                pass
     for date, files in recordings.items():
         if date not in meta or meta[date].get('status') != 'completed':
             meta[date] = meta.get(date, {"streams": {}, "status": "recording"})
@@ -75,9 +79,13 @@ def delete_recordings():
     recordings = get_recordings()
     meta_file  = os.path.join(DATA_DIR, 'metadata.json')
     meta = {}
-    if os.path.exists(meta_file):
-        with open(meta_file, 'r') as f:
-            meta = json.load(f)
+    with meta_lock:
+        if os.path.exists(meta_file):
+            try:
+                with open(meta_file, 'r') as f:
+                    meta = json.load(f)
+            except Exception:
+                pass
 
     if date_str not in recordings and date_str not in meta:
         return jsonify({"error": "No data for this date"}), 404
@@ -104,8 +112,9 @@ def delete_recordings():
                 del meta[date_str]['streams'][stream_id]
             if not meta[date_str]['streams']:
                 del meta[date_str]
-        with open(meta_file, 'w') as f:
-            json.dump(meta, f, indent=4)
+        with meta_lock:
+            with open(meta_file, 'w') as f:
+                json.dump(meta, f, indent=4)
         return jsonify({"status": f"Deleted stream {stream_id} for {date_str}"}), 200
     else:
         date_replay_dir = os.path.join(DATA_DIR, 'replays', date_str)
@@ -119,8 +128,9 @@ def delete_recordings():
             save_recordings(recordings)
         if date_str in meta:
             del meta[date_str]
-            with open(meta_file, 'w') as f:
-                json.dump(meta, f, indent=4)
+            with meta_lock:
+                with open(meta_file, 'w') as f:
+                    json.dump(meta, f, indent=4)
         return jsonify({"status": f"Deleted all data for {date_str}"}), 200
 
 @bp.route('/api/v1/metadata/rename', methods=['POST'])
