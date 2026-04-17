@@ -403,6 +403,9 @@ const ScoreboardView = () => {
                   <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-500/10 text-orange-500 rounded-xl border border-orange-500/20">
                     <span className="text-[10px] font-black opacity-60 uppercase tracking-widest">TỔNG</span>
                     <span className="text-sm font-black font-outfit">{scores[date].length}</span>
+                    <span className="text-[10px] font-black opacity-60 uppercase tracking-widest">KÈO</span>
+                    <div className="w-[1px] h-3 bg-orange-500/30 mx-0.5" />
+                    <span className="text-sm font-black font-outfit">{scores[date].reduce((sum, m) => sum + (parseInt(m.score_a) || 0) + (parseInt(m.score_b) || 0), 0)}</span>
                     <span className="text-[10px] font-black opacity-60 uppercase tracking-widest">TRẬN ĐẤU</span>
                   </div>
                 </div>

@@ -225,9 +225,10 @@ const AnalyticsView = () => {
       globalStats.seriesTotal++;
       globalStats.seriesCount += gameTotal;
       if (!globalStats.categories[cat]) {
-        globalStats.categories[cat] = { count: 0, wins: 0, losses: 0 };
+        globalStats.categories[cat] = { count: 0, wins: 0, losses: 0, seriesCount: 0 };
       }
       globalStats.categories[cat].count += gameTotal;
+      globalStats.categories[cat].seriesCount += 1;
       globalStats.categories[cat].wins += scoreA;
       globalStats.categories[cat].losses += scoreB;
 
@@ -312,8 +313,8 @@ const AnalyticsView = () => {
               key={f}
               onClick={() => setTimeFilter(f)}
               className={`px-3 sm:px-4 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all flex-1 sm:flex-initial text-center ${timeFilter === f
-                  ? 'bg-[#f1812e] text-white shadow-lg shadow-orange-500/20'
-                  : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[#f1812e]/50 text-opacity-50'
+                ? 'bg-[#f1812e] text-white shadow-lg shadow-orange-500/20'
+                : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[#f1812e]/50 text-opacity-50'
                 }`}
             >
               {f === 'all' ? 'Tất cả' : (f === 'week' ? 'Tuần' : (f === 'month' ? 'Tháng' : (f === 'quarter' ? 'Quý' : (f === 'year' ? 'Năm' : 'Lọc'))))}
@@ -481,7 +482,9 @@ const AnalyticsView = () => {
             <div className="relative w-48 h-48 mb-6">
               <svg viewBox="0 0 100 100" className="transform -rotate-90 w-full h-full">
                 <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border-color)" strokeWidth="12" className="opacity-10" />
-                {Object.keys(globalStats.categories).sort().reduce((acc, cat) => {
+                {Object.keys(globalStats.categories)
+                  .sort((a, b) => globalStats.categories[b].count - globalStats.categories[a].count)
+                  .reduce((acc, cat) => {
                   const data = globalStats.categories[cat];
                   const percent = globalStats.seriesCount > 0 ? (data.count / globalStats.seriesCount) : 0;
                   const colors = { '1-1': '#f1812e', '2-2': '#3b82f6', '3-3': '#10b981', '4-4': '#a855f7', '3-4': '#ec4899' };
@@ -505,7 +508,7 @@ const AnalyticsView = () => {
                   return acc;
                 }, { elements: [], offset: 0 }).elements}
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center transition-all duration-300">
+              <div className="absolute inset-0 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none">
                 <span className={`font-black font-outfit leading-none ${hoveredCategory ? 'text-4xl text-[#f1812e]' : 'text-3xl opacity-100'}`}>
                   {hoveredCategory ? globalStats.categories[hoveredCategory].count : globalStats.seriesCount}
                 </span>
@@ -515,7 +518,9 @@ const AnalyticsView = () => {
               </div>
             </div>
             <div className="w-full space-y-2">
-              {Object.keys(globalStats.categories).sort().map((cat) => {
+              {Object.keys(globalStats.categories)
+                .sort((a, b) => globalStats.categories[b].count - globalStats.categories[a].count)
+                .map((cat) => {
                 const bgColors = { '1-1': 'bg-[#f1812e]', '2-2': 'bg-blue-500', '3-3': 'bg-green-500', '4-4': 'bg-purple-500', '3-4': 'bg-pink-500' };
                 const bg = bgColors[cat] || 'bg-slate-500';
                 return (
@@ -553,7 +558,9 @@ const AnalyticsView = () => {
             </div>
 
             <div className="absolute inset-x-8 top-0 bottom-0 flex items-end justify-between gap-4 px-4 z-10">
-              {Object.keys(globalStats.categories).sort().map((cat, i) => {
+              {Object.keys(globalStats.categories)
+                .sort((a, b) => globalStats.categories[b].count - globalStats.categories[a].count)
+                .map((cat, i) => {
                 const data = globalStats.categories[cat];
                 const maxCount = Math.max(...Object.values(globalStats.categories).map(d => d.count), 1);
                 const height = (data.count / maxCount) * 200;
@@ -684,11 +691,11 @@ const AnalyticsView = () => {
                         </div>
                         {/* Hàng 2: Combined Wins/Losses (Bigger) */}
                         <div className="text-center px-1">
-                           <div className="inline-flex items-center gap-2 bg-[var(--bg-main)]/60 px-4 py-1.5 rounded-xl border border-[var(--border-color)] shadow-sm">
-                             <span className="text-[15px] font-black text-green-500 tabular-nums">{player.wins} Thắng</span>
-                             <span className="text-[15px] font-medium opacity-20">/</span>
-                             <span className="text-[15px] font-black text-red-500 tabular-nums">{player.losses} Thua</span>
-                           </div>
+                          <div className="inline-flex items-center gap-2 bg-[var(--bg-main)]/60 px-4 py-1.5 rounded-xl border border-[var(--border-color)] shadow-sm">
+                            <span className="text-[15px] font-black text-green-500 tabular-nums">{player.wins} Thắng</span>
+                            <span className="text-[15px] font-medium opacity-20">/</span>
+                            <span className="text-[15px] font-black text-red-500 tabular-nums">{player.losses} Thua</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -698,16 +705,16 @@ const AnalyticsView = () => {
                       <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.15em] mb-2 text-center">Phong độ gần nhất</p>
                       <div className="space-y-1.5 px-1">
                         <div className="flex items-center justify-between bg-orange-500/5 px-3 py-2 rounded-lg border border-orange-500/10">
-                           <span className="text-[9px] font-black opacity-40 uppercase">20 Trận</span>
-                           <span className="text-xs font-black text-orange-500">{wr20}%</span>
+                          <span className="text-[9px] font-black opacity-40 uppercase">20 Trận</span>
+                          <span className="text-xs font-black text-orange-500">{wr20}%</span>
                         </div>
                         <div className="flex items-center justify-between bg-blue-500/5 px-3 py-2 rounded-lg border border-blue-500/10">
-                           <span className="text-[9px] font-black opacity-40 uppercase">50 Trận</span>
-                           <span className="text-xs font-black text-blue-500">{wr50}%</span>
+                          <span className="text-[9px] font-black opacity-40 uppercase">50 Trận</span>
+                          <span className="text-xs font-black text-blue-500">{wr50}%</span>
                         </div>
                         <div className="flex items-center justify-between bg-green-500/5 px-3 py-2 rounded-lg border border-green-500/10">
-                           <span className="text-[9px] font-black opacity-40 uppercase">100 Trận</span>
-                           <span className="text-xs font-black text-green-500">{wr100}%</span>
+                          <span className="text-[9px] font-black opacity-40 uppercase">100 Trận</span>
+                          <span className="text-xs font-black text-green-500">{wr100}%</span>
                         </div>
                       </div>
                     </div>
