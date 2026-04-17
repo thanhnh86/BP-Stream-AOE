@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import DATA_DIR, MAX_STREAM_WORKERS, MAX_SEG_WORKERS
 from utils import (
     convert_flv_to_ts, get_duration, run_ffmpeg, 
-    update_meta_field, save_meta, meta_lock, get_recordings
+    update_meta_field, update_stream_meta, save_meta, meta_lock, get_recordings
 )
 
 def process_one_segment(args):
@@ -22,7 +22,7 @@ def process_one_segment(args):
     print(f"  ✓ Segment {j+1}: {duration:.1f}s  ({os.path.basename(flv_path)})")
     return (j, ts_path, duration)
 
-def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_start, machine_progress_step):
+def process_one_stream(s_id, files, date_str, meta_file, meta, machine_progress_start, machine_progress_step):
     replay_dir = os.path.join(DATA_DIR, 'replays', date_str, s_id)
     ts_dir     = os.path.join(replay_dir, 'ts_tmp')
     os.makedirs(ts_dir, exist_ok=True)
@@ -40,7 +40,7 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
         print(f"\n[{s_id}] Bắt đầu {len(valid_files)} segments "
               f"(song song {MAX_SEG_WORKERS} file cùng lúc)...")
 
-        update_meta_field(meta, meta_file, date_str,
+        update_meta_field(meta_file, date_str, meta=meta,
             progress_text=f"[{s_id}] Convert {len(valid_files)} segments...",
             progress_percent=machine_progress_start + int(machine_progress_step * 0.05)
         )
@@ -63,7 +63,7 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
                 if result:
                     results[idx] = result
                 done_count += 1
-                update_meta_field(meta, meta_file, date_str,
+                update_meta_field(meta_file, date_str, meta=meta,
                     progress_text=f"[{s_id}] Convert {done_count}/{len(seg_args)} segments...",
                     progress_percent=machine_progress_start + int(
                         machine_progress_step * 0.6 * (done_count / len(seg_args))
@@ -78,7 +78,7 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
 
         print(f"[{s_id}] Convert xong: {len(ts_files)}/{len(valid_files)} segments hợp lệ")
 
-        update_meta_field(meta, meta_file, date_str,
+        update_meta_field(meta_file, date_str, meta=meta,
             progress_text=f"[{s_id}] Tạo HLS...",
             progress_percent=machine_progress_start + int(machine_progress_step * 0.70)
         )
@@ -108,14 +108,14 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
             if os.path.exists(ts_path):
                 os.remove(ts_path)
         
-        # Xóa các file FLV gốc để tiết kiệm dung lượng (theo yêu cầu Hướng 2)
-        print(f"[{s_id}] Đang giải phóng dung lượng: Xóa {len(valid_files)} file FLV gốc...")
-        for flv_path in valid_files:
-            if os.path.exists(flv_path):
-                try:
-                    os.remove(flv_path)
-                except Exception as e:
-                    print(f"[{s_id}] Lỗi khi xóa file gốc {flv_path}: {e}")
+        # NOTE: Giữ lại file FLV gốc để xoá sau (theo quy trình mới: chỉ xoá sau 4 ngày)
+        # print(f"[{s_id}] Đang giải phóng dung lượng: Xóa {len(valid_files)} file FLV gốc...")
+        # for flv_path in valid_files:
+        #     if os.path.exists(flv_path):
+        #         try:
+        #             os.remove(flv_path)
+        #         except Exception as e:
+        #             print(f"[{s_id}] Lỗi khi xóa file gốc {flv_path}: {e}")
 
         concat_txt = os.path.join(ts_dir, 'concat.txt')
         if os.path.exists(concat_txt):
@@ -125,21 +125,19 @@ def process_one_stream(s_id, files, date_str, meta, meta_file, machine_progress_
         except Exception:
             pass
 
-        with meta_lock:
-            meta[date_str]["streams"][s_id] = {
-                "hls":              f"replays/{date_str}/{s_id}/index.m3u8",
-                "duration_minutes": round(total_duration / 60, 2),
-                "file":             f"replays/{date_str}/{s_id}/index.m3u8"
-            }
+        update_stream_meta(meta_file, date_str, s_id, {
+            "hls":              f"replays/{date_str}/{s_id}/index.m3u8",
+            "duration_minutes": round(total_duration / 60, 2),
+            "file":             f"replays/{date_str}/{s_id}/index.m3u8"
+        }, meta=meta)
 
         print(f"[{s_id}] ✓ Hoàn thành: {round(total_duration/60, 2)} phút")
         return s_id, True, None
 
     except Exception as e:
         print(f"[{s_id}] ✗ Lỗi: {e}")
-        with meta_lock:
-            meta[date_str]["streams"][s_id] = {"error": str(e)}
-        update_meta_field(meta, meta_file, date_str,
+        update_stream_meta(meta_file, date_str, s_id, {"error": str(e)}, meta=meta)
+        update_meta_field(meta_file, date_str, meta=meta,
             progress_text=f"Lỗi tại {s_id}: {str(e)}"
         )
         return s_id, False, str(e)
@@ -160,21 +158,14 @@ def do_merge(date_str):
 
     meta_file = os.path.join(DATA_DIR, 'metadata.json')
     meta = {}
-    if os.path.exists(meta_file):
-        with open(meta_file, 'r') as f:
+    with meta_lock:
+        if os.path.exists(meta_file):
             try:
-                meta = json.load(f)
+                with open(meta_file, 'r') as f:
+                    meta = json.load(f)
             except Exception:
-                meta = {}
-
-    if date_str not in meta:
-        meta[date_str] = {"streams": {}, "status": "processing"}
-    else:
-        meta[date_str]["status"] = "processing"
-        if "streams" not in meta[date_str]:
-            meta[date_str]["streams"] = {}
-
-    save_meta(meta_file, meta)
+                pass
+    update_meta_field(meta_file, date_str, meta=meta, status="processing")
 
     total_streams = len(stream_recordings)
     stream_list   = list(stream_recordings.items())
@@ -192,7 +183,7 @@ def do_merge(date_str):
             machine_progress_step  = int(100 / total_streams)
             future = stream_pool.submit(
                 process_one_stream,
-                s_id, files, date_str, meta, meta_file,
+                s_id, files, date_str, meta_file, meta,
                 machine_progress_start, machine_progress_step
             )
             future_map[future] = s_id
@@ -202,16 +193,63 @@ def do_merge(date_str):
             status = "✓ DONE" if success else f"✗ FAIL: {err}"
             print(f"[{status}] Stream {s_id}")
 
-    update_meta_field(meta, meta_file, date_str,
+    update_meta_field(meta_file, date_str, meta=meta,
         status="completed",
         progress_percent=100,
         progress_text="Đã hoàn thành tổng hợp toàn bộ."
     )
 
-    # Dọn dẹp recordings.json cho ngày này vì các file gốc đã bị xóa (An toàn luồng)
-    from utils import delete_recordings_by_date
-    delete_recordings_by_date(date_str)
+    # Thay đổi: Không xoá ngay recordings của ngày vừa gộp.
+    # Thay vào đó, chạy cleanup để xoá các ngày cũ hơn 4 ngày (bao gồm cả file vật lý)
+    cleanup_old_recordings(keep_days=4)
 
-    print(f"\n{'='*60}")
-    print(f"=== Merge hoàn tất cho ngày {date_str} ===")
-    print(f"{'='*60}\n")
+def cleanup_old_recordings(keep_days=4):
+    """
+    Xoá các bản ghi live (FLV) và metadata trong recordings.json 
+    nếu cũ hơn keep_days ngày (bao gồm cả hôm nay).
+    Ví dụ keep_days=4 thì giữ lại: Hôm nay, Hôm qua, Hôm kia, Hôm kìa.
+    """
+    from datetime import datetime, timedelta
+    from utils import get_recordings, save_recordings, recordings_lock
+    
+    print(f"\n--- Bắt đầu dọn dẹp recordings cũ (giữ lại {keep_days} ngày gần nhất) ---")
+    
+    recordings = get_recordings()
+    if not recordings:
+        return
+
+    # Lấy danh sách các ngày, format YYYY-MM-DD
+    dates = sorted(recordings.keys(), reverse=True)
+    if len(dates) <= keep_days:
+        print(f"Số lượng ngày ghi ({len(dates)}) <= {keep_days}, không cần xoá.")
+        return
+
+    # Các ngày cần xoá là các ngày từ index keep_days trở đi
+    dates_to_delete = dates[keep_days:]
+    
+    with recordings_lock:
+        # Load lại để đảm bảo an toàn luồng
+        current_recs = get_recordings()
+        deleted_count = 0
+        
+        for d_str in dates_to_delete:
+            if d_str in current_recs:
+                print(f"  -> Đang xoá dữ liệu live ngày: {d_str}")
+                # Xoá file vật lý
+                for item in current_recs[d_str]:
+                    f_path = item.get('file')
+                    if f_path and os.path.exists(f_path):
+                        try:
+                            os.remove(f_path)
+                        except Exception as e:
+                            print(f"     ! Lỗi xoá file {f_path}: {e}")
+                
+                # Xoá khỏi dict
+                del current_recs[d_str]
+                deleted_count += 1
+        
+        if deleted_count > 0:
+            save_recordings(current_recs)
+            print(f"--- Hoàn tất dọn dẹp: Đã xoá {deleted_count} ngày cũ. ---")
+        else:
+            print("--- Không có gì để xoá. ---")

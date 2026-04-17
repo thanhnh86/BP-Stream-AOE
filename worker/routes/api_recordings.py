@@ -5,7 +5,7 @@ import threading
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from config import DATA_DIR
-from utils import get_recordings, save_recordings, meta_lock
+from utils import get_recordings, save_recordings, meta_lock, save_meta, safe_save_json
 from services.video_service import do_merge
 
 bp = Blueprint('recordings', __name__)
@@ -15,9 +15,16 @@ def get_metadata():
     recordings = get_recordings()
     meta_file = os.path.join(DATA_DIR, 'metadata.json')
     meta = {}
-    if os.path.exists(meta_file):
-        with open(meta_file, 'r') as f:
-            meta = json.load(f)
+    with meta_lock:
+        if os.path.exists(meta_file):
+            for _ in range(3): # Retry up to 3 times if file is being written
+                try:
+                    with open(meta_file, 'r') as f:
+                        meta = json.load(f)
+                    break 
+                except Exception:
+                    import time
+                    time.sleep(0.1)
     for date, files in recordings.items():
         if date not in meta or meta[date].get('status') != 'completed':
             meta[date] = meta.get(date, {"streams": {}, "status": "recording"})
@@ -75,9 +82,13 @@ def delete_recordings():
     recordings = get_recordings()
     meta_file  = os.path.join(DATA_DIR, 'metadata.json')
     meta = {}
-    if os.path.exists(meta_file):
-        with open(meta_file, 'r') as f:
-            meta = json.load(f)
+    with meta_lock:
+        if os.path.exists(meta_file):
+            try:
+                with open(meta_file, 'r') as f:
+                    meta = json.load(f)
+            except Exception:
+                pass
 
     if date_str not in recordings and date_str not in meta:
         return jsonify({"error": "No data for this date"}), 404
@@ -104,8 +115,7 @@ def delete_recordings():
                 del meta[date_str]['streams'][stream_id]
             if not meta[date_str]['streams']:
                 del meta[date_str]
-        with open(meta_file, 'w') as f:
-            json.dump(meta, f, indent=4)
+        save_meta(meta_file, meta)
         return jsonify({"status": f"Deleted stream {stream_id} for {date_str}"}), 200
     else:
         date_replay_dir = os.path.join(DATA_DIR, 'replays', date_str)
@@ -119,8 +129,7 @@ def delete_recordings():
             save_recordings(recordings)
         if date_str in meta:
             del meta[date_str]
-            with open(meta_file, 'w') as f:
-                json.dump(meta, f, indent=4)
+            save_meta(meta_file, meta)
         return jsonify({"status": f"Deleted all data for {date_str}"}), 200
 
 @bp.route('/api/v1/metadata/rename', methods=['POST'])
@@ -144,8 +153,7 @@ def rename_metadata_stream():
         if date_str in meta and 'streams' in meta[date_str]:
             if stream_id in meta[date_str]['streams']:
                 meta[date_str]['streams'][stream_id]['display_name'] = new_name
-                with open(meta_file, 'w') as f:
-                    json.dump(meta, f, indent=4)
+                save_meta(meta_file, meta)
                 return jsonify({"status": "Stream renamed in metadata"}), 200
             else:
                 return jsonify({"error": "Stream ID not found for this date"}), 404
