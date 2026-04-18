@@ -125,6 +125,8 @@ def convert_flv_to_ts(flv_path, ts_path):
         '-analyzeduration', '100M',
         '-probesize', '100M',
         '-i', flv_path,
+        '-map', '0:v:0',
+        '-map', '0:a:0',
         '-c:v', 'copy',
         '-c:a', 'copy',
         '-f', 'mpegts',
