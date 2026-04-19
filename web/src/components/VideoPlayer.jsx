@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import Hls from 'hls.js';
@@ -7,10 +7,18 @@ import Hls from 'hls.js';
 import 'videojs-mobile-ui';
 import 'videojs-mobile-ui/dist/videojs-mobile-ui.css';
 
+// --- Platform Detection (computed once) ---
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isMobile = isIOS || /Android/i.test(navigator.userAgent);
+// On iOS, ALL browsers use WebKit engine - so always use native HLS
+const useNativeHLS = isIOS;
+
 const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayback = false }) => {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   const hlsRef = useRef(null);
+  const resizeTimerRef = useRef(null);
 
   useEffect(() => {
     // 1. Initialize player only once
@@ -22,12 +30,16 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
         fluid: true,
         muted: muted,
         poster: poster,
-        preload: 'auto',
+        // On mobile use 'metadata' to avoid heavy preloading that causes CPU spikes on resize
+        preload: isMobile ? 'metadata' : 'auto',
         playbackRates: [0.5, 1, 1.25, 1.5, 2],
         seekButtons: isPlayback ? {
           forward: 10,
           back: 10
         } : false,
+        // Disable native fullscreen on iOS to keep inline + CSS fullscreen
+        // This prevents WebKit from hijacking video into its own fullscreen player
+        ...(isIOS ? { preferFullWindow: true } : {}),
         userActions: { 
           hotkeys: function(event) {
             // Add custom hotkey support for Left/Right arrows
@@ -72,22 +84,22 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
         }
       }
 
-      // 3. Handle Fullscreen Orientation
-      player.on('fullscreenchange', () => {
-        if (player.isFullscreen()) {
-          // Try to lock landscape on mobile
-          if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
-            window.screen.orientation.lock('landscape').catch(e => {
-              console.log("Could not lock orientation:", e);
-            });
+      // 3. Handle Fullscreen Orientation (non-iOS only, iOS uses preferFullWindow)
+      if (!isIOS) {
+        player.on('fullscreenchange', () => {
+          if (player.isFullscreen()) {
+            if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+              window.screen.orientation.lock('landscape').catch(e => {
+                console.log("Could not lock orientation:", e);
+              });
+            }
+          } else {
+            if (window.screen && window.screen.orientation && window.screen.orientation.unlock) {
+              window.screen.orientation.unlock();
+            }
           }
-        } else {
-          // Unlock on exit
-          if (window.screen && window.screen.orientation && window.screen.orientation.unlock) {
-            window.screen.orientation.unlock();
-          }
-        }
-      });
+        });
+      }
     }
 
     const player = playerRef.current;
@@ -100,16 +112,18 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
     }
 
     // 5. Load NEW URL
-    console.log("VideoPlayer: Loading source:", url, "isPlayback:", isPlayback);
+    console.log("VideoPlayer: Loading source:", url, "isPlayback:", isPlayback, "useNativeHLS:", useNativeHLS);
 
     if (url.endsWith('.m3u8')) {
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-      if (Hls.isSupported() && !isSafari) {
+      if (!useNativeHLS && Hls.isSupported()) {
+        // Non-iOS: use hls.js (desktop Chrome, Firefox, Android, etc.)
         const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: !isPlayback, // Low latency only for live
-          backBufferLength: 30,
+          // Disable worker on mobile to reduce memory pressure during orientation changes
+          enableWorker: !isMobile,
+          lowLatencyMode: !isPlayback,
+          backBufferLength: isMobile ? 15 : 30,
+          maxBufferLength: isMobile ? 20 : 30,
+          maxMaxBufferLength: isMobile ? 30 : 600,
           manifestLoadingMaxRetry: 10,
           levelLoadingMaxRetry: 10,
         });
@@ -134,6 +148,7 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
           }
         });
       } else {
+        // iOS (all browsers) or Safari: use native HLS which WebKit handles natively
         player.src({ src: url, type: 'application/x-mpegURL' });
         if (autoPlay) player.play().catch(e => console.log("Native HLS Autoplay blocked", e));
       }
@@ -151,6 +166,11 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
   // Handle disposal only on UNMOUNT
   useEffect(() => {
     return () => {
+      // Clear any pending resize timer
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
       if (playerRef.current) {
         playerRef.current.dispose();
         playerRef.current = null;
@@ -162,24 +182,39 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
     };
   }, []);
 
-  // 6. Handle iOS orientation change / resize issues in fullscreen
+  // 6. Handle orientation change / resize with DEBOUNCE to prevent CPU spike
   useEffect(() => {
+    // Debounced resize handler - prevents rapid-fire resize events on iOS
+    // from causing layout thrashing and CPU spikes
     const handleResize = () => {
-      if (playerRef.current) {
-        setTimeout(() => {
-          if (playerRef.current) {
-            playerRef.current.trigger('resize');
-          }
-        }, 200);
+      // Clear any existing timer to debounce
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
       }
+
+      resizeTimerRef.current = setTimeout(() => {
+        if (playerRef.current) {
+          playerRef.current.trigger('resize');
+        }
+        resizeTimerRef.current = null;
+      }, 500); // 500ms debounce - iOS fires many events during rotation animation
     };
 
-    window.addEventListener('orientationchange', handleResize);
+    // Use 'orientationchange' for legacy iOS, 'resize' as fallback
+    // Only listen to orientationchange on mobile to avoid unnecessary desktop events
+    if (isMobile) {
+      window.addEventListener('orientationchange', handleResize);
+    }
     window.addEventListener('resize', handleResize);
     
     return () => {
-      window.removeEventListener('orientationchange', handleResize);
+      if (isMobile) {
+        window.removeEventListener('orientationchange', handleResize);
+      }
       window.removeEventListener('resize', handleResize);
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+      }
     };
   }, []);
 
@@ -192,6 +227,8 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
           playsInline
           webkit-playsinline="true"
           x5-playsinline="true"
+          x5-video-player-type="h5"
+          x5-video-player-fullscreen="true"
         />
       </div>
 
@@ -247,17 +284,48 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
             padding-top: 56.25% !important; /* 16:9 */
             height: 0 !important;
         }
+
         /* Fix iOS black screen on fullscreen rotation */
-        .video-js.vjs-fullscreen {
+        .video-js.vjs-fullscreen,
+        .video-js.vjs-full-window {
             padding-top: 0 !important;
             height: 100% !important;
             width: 100% !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            z-index: 9999 !important;
         }
-        .vjs-fullscreen .vjs-tech {
+        .vjs-fullscreen .vjs-tech,
+        .vjs-full-window .vjs-tech {
             width: 100% !important;
             height: 100% !important;
             object-fit: contain;
         }
+
+        /* Fix landscape rotation WITHOUT fullscreen on iOS */
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+          .custom-videojs-theme {
+            /* When phone is rotated, let video take more space */
+            position: relative;
+          }
+          .custom-videojs-theme .video-js.vjs-fluid {
+            /* Override padding-top with a landscape-friendly ratio */
+            padding-top: 0 !important;
+            height: 100% !important;
+            max-height: 100vh;
+          }
+          .custom-videojs-theme .video-js .vjs-tech {
+            object-fit: contain;
+          }
+        }
+
+        /* Prevent iOS rubber-banding / overscroll during video interaction */
+        .custom-videojs-theme .video-js {
+          -webkit-overflow-scrolling: auto;
+          touch-action: manipulation;
+        }
+
         .vjs-poster {
             background-size: cover !important;
         }
