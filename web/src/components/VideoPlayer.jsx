@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import Hls from 'hls.js';
@@ -38,10 +38,13 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
           forward: 10,
           back: 10
         } : false,
-        // Allow mobile browsers to use their native fullscreen implementation 
-        // (this allows iOS to enter the native video player on fullscreen)
-        preferFullWindow: false,
-        userActions: { 
+        // FIX 1: iOS dùng preferFullWindow: true
+        // Thay vì gọi webkitEnterFullscreen() khiến iOS bứng video ra native player
+        // (gây shrink → expand, đơ, không tua được), video.js sẽ fill toàn viewport
+        // mà không mất quyền kiểm soát DOM → không conflict, không CPU spike.
+        // Android và desktop giữ false để dùng Fullscreen API bình thường.
+        preferFullWindow: isIOS,
+        userActions: {
           hotkeys: function(event) {
             // Add custom hotkey support for Left/Right arrows
             // Arrow Left = 37, Arrow Right = 39
@@ -85,7 +88,9 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
         }
       }
 
-      // 3. Handle Fullscreen Orientation (non-iOS only, iOS uses preferFullWindow)
+      // 3. Handle Fullscreen Orientation
+      // iOS dùng preferFullWindow nên không cần lock orientation - browser tự xử lý.
+      // Chỉ lock orientation cho Android (có hỗ trợ screen.orientation API).
       if (!isIOS) {
         player.on('fullscreenchange', () => {
           if (player.isFullscreen()) {
@@ -185,8 +190,6 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
 
   // 6. Handle orientation change / resize with DEBOUNCE to prevent CPU spike
   useEffect(() => {
-    // Debounced resize handler - prevents rapid-fire resize events on iOS
-    // from causing layout thrashing and CPU spikes
     const handleResize = () => {
       // Clear any existing timer to debounce
       if (resizeTimerRef.current) {
@@ -194,9 +197,18 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
       }
 
       resizeTimerRef.current = setTimeout(() => {
-        if (playerRef.current) {
-          playerRef.current.trigger('resize');
+        const player = playerRef.current;
+        if (!player) return;
+
+        // FIX 2: Bỏ qua trigger resize khi đang trong fullscreen hoặc full-window.
+        // Trên iOS, orientationchange và resize đều fire liên tục trong lúc
+        // animate fullscreen transition → gọi player.trigger('resize') lúc này
+        // gây layout thrashing → CPU spike → nóng máy.
+        // isFullWindow() bắt trường hợp preferFullWindow: true trên iOS.
+        if (!player.isFullscreen() && !player.isFullWindow()) {
+          player.trigger('resize');
         }
+
         resizeTimerRef.current = null;
       }, 500); // 500ms debounce - iOS fires many events during rotation animation
     };
@@ -207,7 +219,7 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
       window.addEventListener('orientationchange', handleResize);
     }
     window.addEventListener('resize', handleResize);
-    
+
     return () => {
       if (isMobile) {
         window.removeEventListener('orientationchange', handleResize);
@@ -280,8 +292,6 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
         .vjs-seek-button.skip-forward {
             background-image: none !important;
         }
-        
-
 
         /* Prevent iOS rubber-banding / overscroll during video interaction */
         .custom-videojs-theme .video-js {
