@@ -165,14 +165,14 @@ def process_one_stream(s_id, files, date_str, meta_file, meta, machine_progress_
 
 def do_merge(date_str):
     recordings = get_recordings()
-    print(f"\n[INTERNAL DEBUG] Gọi do_merge cho ngày: {date_str}")
-    print(f"[INTERNAL DEBUG] DATA_DIR: {DATA_DIR} | LIVE_DIR: {LIVE_DIR}")
-    print(f"[INTERNAL DEBUG] Tổng số ngày trong recordings.json: {len(recordings)}")
+    print(f"\n[INTERNAL DEBUG] Gọi do_merge cho ngày: {date_str}", flush=True)
+    print(f"[INTERNAL DEBUG] DATA_DIR: {DATA_DIR} | LIVE_DIR: {LIVE_DIR}", flush=True)
+    print(f"[INTERNAL DEBUG] Tổng số ngày trong recordings.json: {len(recordings)}", flush=True)
     if recordings:
-        print(f"[INTERNAL DEBUG] Danh sách các ngày: {list(recordings.keys())}")
+        print(f"[INTERNAL DEBUG] Danh sách các ngày: {list(recordings.keys())}", flush=True)
 
     if date_str not in recordings:
-        print(f"No recordings found for date: {date_str}")
+        print(f"No recordings found for date: {date_str}", flush=True)
         return
 
     stream_recordings = {}
