@@ -8,12 +8,11 @@ elif os.path.exists('.env'):
     load_dotenv('.env')
 
 DATA_DIR = os.environ.get('DATA_DIR', '/data')
-LIVE_DIR = os.environ.get('LIVE_DIR', '/live')
 LOG_FILE = os.path.join(DATA_DIR, 'recordings.json')
 WORKER_PORT = int(os.environ.get('WORKER_PORT', 5001))
 
-# Tuning cho HDD + 40 vCPU + 4GB RAM
-MAX_STREAM_WORKERS = int(os.environ.get('MAX_STREAM_WORKERS', 2))
+# Tuning cho HDD + 40 vCPU + 3GB RAM
+MAX_STREAM_WORKERS = int(os.environ.get('MAX_STREAM_WORKERS', 3))
 MAX_SEG_WORKERS    = int(os.environ.get('MAX_SEG_WORKERS', 4))
 FFMPEG_THREADS     = int(os.environ.get('FFMPEG_THREADS', 2))
 

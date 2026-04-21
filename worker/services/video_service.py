@@ -1,8 +1,7 @@
 import os
 import json
-import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from config import DATA_DIR, LIVE_DIR, MAX_STREAM_WORKERS, MAX_SEG_WORKERS
+from config import DATA_DIR, MAX_STREAM_WORKERS, MAX_SEG_WORKERS
 from utils import (
     convert_flv_to_ts, get_duration, run_ffmpeg, 
     update_meta_field, update_stream_meta, save_meta, meta_lock, get_recordings
@@ -25,40 +24,21 @@ def process_one_segment(args):
 
 def process_one_stream(s_id, files, date_str, meta_file, meta, machine_progress_start, machine_progress_step):
     replay_dir = os.path.join(DATA_DIR, 'replays', date_str, s_id)
-    ssd_dir    = os.path.join(LIVE_DIR, 'tmp_process', date_str, s_id)
-    ts_dir     = os.path.join(ssd_dir, 'ts_tmp')
+    ts_dir     = os.path.join(replay_dir, 'ts_tmp')
     os.makedirs(ts_dir, exist_ok=True)
 
-    hls_output = os.path.join(ssd_dir, 'index.m3u8')
+    hls_output = os.path.join(replay_dir, 'index.m3u8')
 
     try:
-        # Cơ chế tìm file thông minh: Thử cả đường dẫn cũ (HDD) và mới (SSD)
-        valid_files = []
-        for f in files:
-            if os.path.exists(f):
-                valid_files.append(f)
-            else:
-                # Thử chuyển đổi đường dẫn từ HDD sang SSD
-                # Trường hợp 1: Map 1-1 (/data -> /live)
-                alt_f = f.replace(DATA_DIR, LIVE_DIR)
-                if os.path.exists(alt_f):
-                    valid_files.append(alt_f)
-                else:
-                    # Trường hợp 2: Map bỏ qua folder 'live' (/data/live -> /live)
-                    alt_f2 = f.replace(os.path.join(DATA_DIR, 'live'), LIVE_DIR)
-                    if os.path.exists(alt_f2):
-                        valid_files.append(alt_f2)
-
-        valid_files = sorted(valid_files)
+        valid_files = sorted([f for f in files if os.path.exists(f)])
         skipped = len(files) - len(valid_files)
-        
-        if skipped > 0:
-            print(f"[{s_id}] WARNING: Bỏ qua {skipped} segment không tìm thấy trên cả HDD và SSD")
-        
+        if skipped:
+            print(f"[{s_id}] WARNING: Bỏ qua {skipped} segment không có trên disk")
         if not valid_files:
-            raise RuntimeError("Không tìm thấy segment nào trên disk (Đã check cả /data và /live)")
+            raise RuntimeError("Không tìm thấy segment nào trên disk")
 
-        print(f"\n[{s_id}] Bắt đầu {len(valid_files)} segments (song song {MAX_SEG_WORKERS})...")
+        print(f"\n[{s_id}] Bắt đầu {len(valid_files)} segments "
+              f"(song song {MAX_SEG_WORKERS} file cùng lúc)...")
 
         update_meta_field(meta_file, date_str, meta=meta,
             progress_text=f"[{s_id}] Convert {len(valid_files)} segments...",
@@ -115,7 +95,7 @@ def process_one_stream(s_id, files, date_str, meta_file, meta, machine_progress_
             '-hls_time', '5',
             '-hls_list_size', '0',
             '-hls_flags', 'independent_segments',
-            '-hls_segment_filename', os.path.join(ssd_dir, 'segment_%d.ts'),
+            '-hls_segment_filename', os.path.join(replay_dir, 'segment_%d.ts'),
             hls_output
         ])
         if not success:
@@ -145,24 +125,6 @@ def process_one_stream(s_id, files, date_str, meta_file, meta, machine_progress_
         except Exception:
             pass
 
-        # Di chuyển kết quả HLS từ ổ SSD (tmp_process) sang HDD (DATA_DIR)
-        os.makedirs(replay_dir, exist_ok=True)
-        print(f"[{s_id}] Đang di chuyển kết quả sang HDD: {replay_dir} ...")
-        
-        for f in os.listdir(ssd_dir):
-            if f.endswith('.m3u8') or f.endswith('.ts'):
-                src_f = os.path.join(ssd_dir, f)
-                dst_f = os.path.join(replay_dir, f)
-                if os.path.exists(dst_f):
-                    os.remove(dst_f)
-                shutil.move(src_f, dst_f)
-
-        try:
-            # Gỡ bỏ thư mục tạm
-            os.rmdir(ssd_dir)
-        except Exception:
-            pass
-
         update_stream_meta(meta_file, date_str, s_id, {
             "hls":              f"replays/{date_str}/{s_id}/index.m3u8",
             "duration_minutes": round(total_duration / 60, 2),
@@ -183,14 +145,8 @@ def process_one_stream(s_id, files, date_str, meta_file, meta, machine_progress_
 
 def do_merge(date_str):
     recordings = get_recordings()
-    print(f"\n[INTERNAL DEBUG] Gọi do_merge cho ngày: {date_str}", flush=True)
-    print(f"[INTERNAL DEBUG] DATA_DIR: {DATA_DIR} | LIVE_DIR: {LIVE_DIR}", flush=True)
-    print(f"[INTERNAL DEBUG] Tổng số ngày trong recordings.json: {len(recordings)}", flush=True)
-    if recordings:
-        print(f"[INTERNAL DEBUG] Danh sách các ngày: {list(recordings.keys())}", flush=True)
-
     if date_str not in recordings:
-        print(f"No recordings found for date: {date_str}", flush=True)
+        print(f"No recordings found for date: {date_str}")
         return
 
     stream_recordings = {}
@@ -243,11 +199,9 @@ def do_merge(date_str):
         progress_text="Đã hoàn thành tổng hợp toàn bộ."
     )
 
-    # 1. Dọn dẹp FLV cũ (giữ 4 ngày - Trạng thái ổn định)
+    # Thay đổi: Không xoá ngay recordings của ngày vừa gộp.
+    # Thay vào đó, chạy cleanup để xoá các ngày cũ hơn 4 ngày (bao gồm cả file vật lý)
     cleanup_old_recordings(keep_days=4)
-    
-    # 2. Kiểm tra và dọn dẹp Replays nếu đầy ổ đĩa (Smart Protection)
-    check_disk_usage_and_cleanup(threshold_percent=90)
 
 def cleanup_old_recordings(keep_days=4):
     """
@@ -299,42 +253,3 @@ def cleanup_old_recordings(keep_days=4):
             print(f"--- Hoàn tất dọn dẹp: Đã xoá {deleted_count} ngày cũ. ---")
         else:
             print("--- Không có gì để xoá. ---")
-
-def check_disk_usage_and_cleanup(threshold_percent=90):
-    """
-    Nếu dung lượng đĩa sử dụng vượt quá threshold_percent, 
-    xóa các thư mục replays cũ nhất cho đến khi hạ xuống dưới mức an toàn.
-    """
-    usage = shutil.disk_usage(DATA_DIR)
-    used_percent = (usage.used / usage.total) * 100
-    
-    if used_percent < threshold_percent:
-        return
-
-    print(f"\n[DANGEROUS] Dung lượng đĩa sắp đầy ({used_percent:.1f}%). Bắt đầu dọn dẹp Replays...")
-    
-    replays_base = os.path.join(DATA_DIR, 'replays')
-    if not os.path.exists(replays_base):
-        return
-
-    # Lấy danh sách các ngày trong thư mục replays (YYYY-MM-DD)
-    replay_dates = sorted([d for d in os.listdir(replays_base) 
-                          if os.path.isdir(os.path.join(replays_base, d))])
-    
-    if not replay_dates:
-        print("Không tìm thấy thư mục replay nào để xóa.")
-        return
-
-    # Xóa từng ngày cũ nhất cho đến khi xuống dưới ngưỡng threshold - 10%
-    target_percent = threshold_percent - 10
-    for d_str in replay_dates:
-        dir_to_delete = os.path.join(replays_base, d_str)
-        print(f"  -> Xoá replay cũ nhất để giải phóng không gian: {dir_to_delete}")
-        shutil.rmtree(dir_to_delete, ignore_errors=True)
-        
-        # Kiểm tra lại dung lượng
-        new_usage = shutil.disk_usage(DATA_DIR)
-        new_percent = (new_usage.used / new_usage.total) * 100
-        if new_percent < target_percent:
-            print(f"Đã giải phóng đủ không gian ({new_percent:.1f}%). Dừng dọn dẹp.")
-            break
