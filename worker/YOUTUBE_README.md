@@ -52,4 +52,9 @@ Phù hợp cho Docker, chạy hàng đêm vào lúc 2:00 AM:
 - **UI**: Dashboard sẽ tự động hiển thị trình phát YouTube thay thế cho trình phát local.
 
 ---
-**Lưu ý**: Hạn mức (Quota) của YouTube API mặc định là 10,000 đơn vị/ngày (khoảng 6-10 video). Nếu số lượng trận đấu vượt quá hạn mức, hệ thống sẽ tiếp tục upload vào ngày hôm sau.
+**Lưu ý quan trọng**:
+1. **Xác minh tài khoản**: Mặc định YouTube chỉ cho phép upload video ngắn hơn 15 phút. Vì các trận AOE thường dài 1-4 tiếng, bạn **BẮT BUỘC** phải xác minh tài khoản YouTube của mình bằng số điện thoại tại: [https://www.youtube.com/verify](https://www.youtube.com/verify). Nếu không, video sẽ bị YouTube tự động xoá sau khi upload.
+2. **Hạn mức (Quota)**: YouTube API mặc định có hạn mức 10,000 đơn vị/ngày (khoảng 6-10 video). Nếu số lượng trận đấu vượt quá hạn mức, hệ thống sẽ tiếp tục upload vào ngày hôm sau.
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"date": "2026-04-09"}' \
+     http://localhost:5001/api/v1/youtube/sync
