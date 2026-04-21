@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 from config import DATA_DIR
 from utils import get_recordings, save_recordings, meta_lock, save_meta, safe_save_json
-from services.video_service import do_merge
+from services.video_service import do_merge, do_youtube_sync
 
 bp = Blueprint('recordings', __name__)
 
@@ -197,4 +197,14 @@ def get_system_status():
         },
         "days_recorded": days_recorded,
         "days_since_start": days_since_start
+    })
+
+@bp.route('/api/v1/youtube/sync', methods=['POST'])
+def trigger_youtube_sync():
+    data = request.json or {}
+    specific_date = data.get('date') # Optional: YYYY-MM-DD
+    threading.Thread(target=do_youtube_sync, args=(specific_date,), daemon=True).start()
+    return jsonify({
+        "status": "YouTube sync started in background",
+        "mode": "specific_date" if specific_date else "archival"
     })

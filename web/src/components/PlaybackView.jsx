@@ -212,7 +212,7 @@ const PlaybackView = () => {
                     <div className="relative aspect-video rounded-3xl overflow-hidden bg-black border border-[var(--border-color)] shadow-2xl">
                         {currentVideo ? (
                             <VideoPlayer
-                                url={currentVideo.hls ? `/replays/${currentVideo.hls}` : `/replays/${currentVideo.file}`}
+                                url={currentVideo.youtube_url || (currentVideo.hls ? `/replays/${currentVideo.hls}` : `/replays/${currentVideo.file}`)}
                                 isPlayback={true}
                                 autoPlay={true}
                             />
@@ -327,7 +327,16 @@ const PlaybackView = () => {
                                                 {meta.duration_minutes} PHÚT
                                             </div>
                                             <div className={`w-1 h-1 rounded-full ${selectedStream === s_id ? 'bg-[#fff]/20' : 'bg-[var(--border-color)]'}`} />
-                                            <span className={`text-[10px] font-bold uppercase tracking-widest ${selectedStream === s_id ? 'text-[#fff]/70' : 'text-[var(--text-secondary)] opacity-40'}`}>Đã lưu</span>
+                                            {meta.youtube_url ? (
+                                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${
+                                                    selectedStream === s_id ? 'bg-white/20 text-white' : 'bg-red-500/10 text-red-500'
+                                                }`}>
+                                                    <Monitor size={10} />
+                                                    YOUTUBE
+                                                </div>
+                                            ) : (
+                                                <span className={`text-[10px] font-bold uppercase tracking-widest ${selectedStream === s_id ? 'text-[#fff]/70' : 'text-[var(--text-secondary)] opacity-40'}`}>Local</span>
+                                            )}
                                         </div>
                                         {selectedStream === s_id && (
                                             <>
@@ -483,9 +492,16 @@ const PlaybackView = () => {
                                             </div>
 
                                             <div className="pt-2">
-                                                <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-[9px] font-black uppercase tracking-widest">
-                                                    Dữ liệu đã sẵn sàng
-                                                </span>
+                                                {currentVideo.youtube_url ? (
+                                                    <span className="px-3 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
+                                                        <Monitor size={12} />
+                                                        Đã lưu trữ trên YouTube
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-[9px] font-black uppercase tracking-widest">
+                                                        Dữ liệu sẵn sàng (Local)
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

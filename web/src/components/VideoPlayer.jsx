@@ -6,6 +6,8 @@ import { MediaPlayer, MediaProvider } from '@vidstack/react';
 import { defaultLayoutIcons, DefaultVideoLayout } from '@vidstack/react/player/layouts/default';
 
 const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayback = false }) => {
+  const isYouTube = url && (url.includes('youtube.com') || url.includes('youtu.be') || url.startsWith('youtube/'));
+  
   return (
     <div className="w-full h-full bg-black flex items-center justify-center custom-vidstack-theme overflow-hidden relative">
       <MediaPlayer 
@@ -16,7 +18,7 @@ const VideoPlayer = ({ url, muted = true, autoPlay = true, poster = '', isPlayba
         muted={muted}
         poster={poster}
         load="visible"
-        streamType={isPlayback ? "on-demand" : "live"}
+        streamType={isYouTube ? "on-demand" : (isPlayback ? "on-demand" : "live")}
         className="w-full h-full"
         aspectRatio="16/9"
       >
