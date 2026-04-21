@@ -403,18 +403,25 @@ def do_youtube_sync(specific_date=None):
 
             # 7. Use/Create Playlist for the day
             playlist_id = day_meta.get('youtube_playlist_id')
+            print(f"  ? Playlist hiện tại cho ngày {date_str}: {playlist_id}", flush=True)
+            
             if not playlist_id:
                 p_title = f"AOE Replay | Ngày {date_str}"
                 p_desc = f"Toàn bộ bản ghi các trận đấu AOE ngày {date_str}."
-                print(f"  + Đang tạo Playlist mới: {p_title}...", flush=True)
+                print(f"  + ĐANG TẠO PLAYLIST MỚI: {p_title}...", flush=True)
                 try:
                     playlist_id = yt.create_playlist(p_title, p_desc, privacy_status="public")
                     day_meta['youtube_playlist_id'] = playlist_id
                     day_meta['youtube_playlist_url'] = f"https://www.youtube.com/playlist?list={playlist_id}"
+                    print(f"  ✓ Đã tạo Playlist: {playlist_id}", flush=True)
                 except Exception as pe:
-                    print(f"  ✗ Lỗi tạo Playlist: {pe}", flush=True)
+                    print(f"  ✗ LỖI TẠO PLAYLIST: {pe}", flush=True)
+                    # Don't return, continue with video uploads even if playlist fails
 
             for s_id, s_info in streams.items():
+                # Debug info for name finding
+                print(f"  - Thông tin stream {s_id}: {list(s_info.keys())}", flush=True)
+                
                 if s_info.get('youtube_url'):
                     print(f"  - Stream {s_id} đã có link YouTube, bỏ qua.", flush=True)
                     continue
@@ -436,7 +443,12 @@ def do_youtube_sync(specific_date=None):
                     continue
                 
                 # PRECISE TITLE: Using player name effectively
-                player_name = s_info.get('display_name', s_id)
+                # Force look for display_name, fallback to s_id, but strip team prefix if needed
+                player_name = s_info.get('display_name')
+                if not player_name or player_name.startswith('team'):
+                    # Last ditch effort: if display_name is generic, try s_id but make it cleaner
+                    player_name = s_info.get('display_name', s_id)
+                
                 title = f"AOE Replay | {player_name} | Ngày {date_str}"
                 
                 description = (
@@ -478,12 +490,12 @@ def do_youtube_sync(specific_date=None):
                     print(f"    ✗ Lỗi upload YouTube: {e}", flush=True)
                     if os.path.exists(output_mp4):
                         os.remove(output_mp4)
-                    continue
-
         with meta_lock:
-            update_meta_field(meta_file, datetime.now().strftime('%Y-%m-%d'), meta=meta)
+            # Sync meta data (including playlist_id and youtube_info)
+            meta[date_str] = day_meta
+            save_meta(meta_file, meta)
         
-        print(f"\n--- Hoàn tất tiến trình YouTube Sync ---", flush=True)
+        print(f"\n--- Hoàn tất tiến trình YouTube Sync cho ngày {date_str} ---", flush=True)
     except Exception as e:
         print(f"✗ CRITICAL ERROR trong quá trình Sync: {e}", flush=True)
         import traceback
