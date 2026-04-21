@@ -33,14 +33,13 @@ def run_flow(credentials_path, token_path):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='YouTube Auth Helper')
-    parser.add_argument('--secrets', default='../client_secrets.json', help='Path to client_secrets.json')
-    parser.add_argument('--token', default='../youtube_token.pickle', help='Path to save youtube_token.pickle')
+    parser.add_argument('--secrets', default='youtube_secrets.json', help='Path to client_secrets.json')
+    parser.add_argument('--token', default='youtube_token.pickle', help='Path to save youtube_token.pickle')
     
     args = parser.parse_args()
     
-    # Ensure relative paths work from script location
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    absolute_secrets = os.path.join(script_dir, args.secrets)
-    absolute_token = os.path.join(script_dir, args.token)
+    # Use paths relative to current working directory (standard CLI behavior)
+    absolute_secrets = os.path.abspath(args.secrets)
+    absolute_token = os.path.abspath(args.token)
     
     run_flow(absolute_secrets, absolute_token)
