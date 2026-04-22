@@ -2,8 +2,11 @@ import os
 import pickle
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-# Scopes required for YouTube upload
-SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
+# Scopes required for YouTube upload and playlist management
+SCOPES = [
+    'https://www.googleapis.com/auth/youtube.upload',
+    'https://www.googleapis.com/auth/youtube'
+]
 
 def run_flow(credentials_path, token_path):
     """

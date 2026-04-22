@@ -487,6 +487,8 @@ def do_youtube_sync(specific_date=None, specific_stream=None, force=False, is_te
                     print(f"  ✗ LỖI TẠO PLAYLIST: {pe}", flush=True)
                     # Don't return, continue with video uploads even if playlist fails
 
+            # 8. Loop through all streams for this date
+            for s_id, s_info in streams.items():
                 # Filter by specific stream if requested
                 if specific_stream and s_id != specific_stream:
                     continue
@@ -583,10 +585,10 @@ def do_youtube_sync(specific_date=None, specific_stream=None, force=False, is_te
                     print(f"    ✗ Lỗi upload YouTube: {e}", flush=True)
                     if os.path.exists(output_mp4):
                         os.remove(output_mp4)
-        with meta_lock:
-            # Sync meta data (including playlist_id and youtube_info)
-            meta[date_str] = day_meta
-            save_meta(meta_file, meta)
+            with meta_lock:
+                # Sync meta data (including playlist_id and youtube_info)
+                meta[date_str] = day_meta
+                save_meta(meta_file, meta)
         
         print(f"\n--- Hoàn tất tiến trình YouTube Sync cho ngày {date_str} ---", flush=True)
     except Exception as e:
