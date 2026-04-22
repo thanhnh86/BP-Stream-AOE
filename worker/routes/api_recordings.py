@@ -32,7 +32,7 @@ def get_metadata():
 
 @bp.route('/api/v1/dvr', methods=['POST'])
 def on_dvr():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     print(f"Received hook: {data}")
     if not data or data.get('action') != 'on_dvr':
         return "Invalid hook", 400
@@ -58,7 +58,7 @@ def on_dvr():
 
 @bp.route('/api/v1/debug', methods=['POST'])
 def debug_hook():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     print(f"DEBUG HOOK: {data}")
     return "0", 200
 
@@ -69,7 +69,7 @@ def merge_date(date_str):
 
 @bp.route('/api/v1/delete', methods=['POST'])
 def delete_recordings():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     password  = data.get('password')
     date_str  = data.get('date')
     stream_id = data.get('stream')
@@ -134,7 +134,7 @@ def delete_recordings():
 
 @bp.route('/api/v1/metadata/rename', methods=['POST'])
 def rename_metadata_stream():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     date_str = data.get('date')
     stream_id = data.get('stream_id')
     new_name = data.get('new_name')
@@ -201,10 +201,36 @@ def get_system_status():
 
 @bp.route('/api/v1/youtube/sync', methods=['POST'])
 def trigger_youtube_sync():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     specific_date = data.get('date') # Optional: YYYY-MM-DD
     threading.Thread(target=do_youtube_sync, args=(specific_date,), daemon=True).start()
     return jsonify({
         "status": "YouTube sync started in background",
         "mode": "specific_date" if specific_date else "archival"
+    })
+
+@bp.route('/api/v1/youtube/test-upload', methods=['POST'])
+def trigger_test_upload():
+    data = request.get_json(silent=True) or {}
+    specific_date = data.get('date')
+    stream_id = data.get('stream_id')
+    
+    if not specific_date or not stream_id:
+        return jsonify({"error": "Missing date or stream_id"}), 400
+        
+    threading.Thread(
+        target=do_youtube_sync, 
+        kwargs={
+            "specific_date": specific_date, 
+            "specific_stream": stream_id, 
+            "force": True, 
+            "is_test": True
+        }, 
+        daemon=True
+    ).start()
+    
+    return jsonify({
+        "status": "Test upload started in background",
+        "date": specific_date,
+        "stream": stream_id
     })

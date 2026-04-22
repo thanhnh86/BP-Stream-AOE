@@ -10,6 +10,72 @@ from utils import (
     save_recordings, recordings_lock
 )
 
+def format_duration_vietnamese(minutes_float):
+    """
+    Formats duration from minutes (float) to 'X phút Y giây' or 'X phút'.
+    """
+    total_seconds = int(minutes_float * 60)
+    mins = total_seconds // 60
+    secs = total_seconds % 60
+    
+    parts = []
+    if mins > 0:
+        parts.append(f"{mins} phút")
+    if secs > 0:
+        parts.append(f"{secs} giây")
+        
+    return " ".join(parts) if parts else "0 giây"
+
+def get_player_name_from_db(date_str, s_id):
+    """
+    Tries to find player name from database for a specific date and stream ID (teamX-Y).
+    """
+    try:
+        import database
+        import re
+        match = re.match(r'team(\d)-(\d)', s_id)
+        if not match:
+            return None
+            
+        team_num, pos_num = map(int, match.groups())
+        team_char = 'A' if team_num == 1 else 'B'
+        pos_idx = pos_num - 1 # 1-indexed to 0-indexed
+        
+        conn = database.get_db_connection()
+        if not conn:
+            return None
+            
+        cursor = conn.cursor(dictionary=True)
+        # Find the match on that date
+        cursor.execute("SELECT id FROM matches WHERE match_date = %s LIMIT 1", (date_str,))
+        match_row = cursor.fetchone()
+        if not match_row:
+            cursor.close()
+            conn.close()
+            return None
+            
+        m_id = match_row['id']
+        # Find participants for that team, ordered by ID (insertion order usually reflects position)
+        cursor.execute("""
+            SELECT p.name 
+            FROM match_participants mp
+            JOIN players p ON mp.player_id = p.id
+            WHERE mp.match_id = %s AND mp.team = %s
+            ORDER BY mp.id ASC
+        """, (m_id, team_char))
+        parts = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        if 0 <= pos_idx < len(parts):
+            return parts[pos_idx]['name']
+            
+    except Exception as e:
+        print(f"Error fetching player name from DB for {s_id} on {date_str}: {e}")
+        
+    return None
+
 def process_one_segment(args):
     j, flv_path, ts_path = args
     success, stderr = convert_flv_to_ts(flv_path, ts_path)
@@ -327,10 +393,13 @@ def get_nights_older_than(days=7):
     
     return eligible_dates
 
-def do_youtube_sync(specific_date=None):
+def do_youtube_sync(specific_date=None, specific_stream=None, force=False, is_test=False):
     """
     Orchestrates the migration of old recordings to YouTube.
     If specific_date is provided (YYYY-MM-DD), it syncs that date regardless of age.
+    If specific_stream is provided, it only syncs that specific stream.
+    If force is True, it syncs even if already uploaded.
+    If is_test is True, it prefixes the title with [TEST] and doesn't update metadata.
     """
     from services.youtube_service import YouTubeService
     
@@ -418,11 +487,11 @@ def do_youtube_sync(specific_date=None):
                     print(f"  ✗ LỖI TẠO PLAYLIST: {pe}", flush=True)
                     # Don't return, continue with video uploads even if playlist fails
 
-            for s_id, s_info in streams.items():
-                # Debug info for name finding
-                print(f"  - Thông tin stream {s_id}: {list(s_info.keys())}", flush=True)
+                # Filter by specific stream if requested
+                if specific_stream and s_id != specific_stream:
+                    continue
                 
-                if s_info.get('youtube_url'):
+                if s_info.get('youtube_url') and not force:
                     print(f"  - Stream {s_id} đã có link YouTube, bỏ qua.", flush=True)
                     continue
                 
@@ -443,20 +512,41 @@ def do_youtube_sync(specific_date=None):
                     continue
                 
                 # PRECISE TITLE: Using player name effectively
-                # Force look for display_name, fallback to s_id, but strip team prefix if needed
+                # Force look for display_name, fallback to DB, fallback to s_id
                 player_name = s_info.get('display_name')
-                if not player_name or player_name.startswith('team'):
-                    # Last ditch effort: if display_name is generic, try s_id but make it cleaner
-                    player_name = s_info.get('display_name', s_id)
                 
-                title = f"AOE Replay | {player_name} | Ngày {date_str}"
+                # Check DB if name is generic or missing
+                if not player_name or player_name.startswith('team'):
+                    db_name = get_player_name_from_db(date_str, s_id)
+                    if db_name:
+                        print(f"    - Tìm thấy tên người chơi từ DB: {db_name}", flush=True)
+                        player_name = db_name
+                        s_info['display_name'] = db_name # Persist to metadata
+
+                if not player_name:
+                    player_name = s_id
+                
+                # BRANDING UPDATES: Title and Description
+                title_prefix = "[TEST] " if is_test else ""
+                title = f"{title_prefix}BPGROUP AOE Replay - {player_name} - {date_str}"
+                
+                duration_str = format_duration_vietnamese(s_info.get('duration_minutes', 0))
                 
                 description = (
-                    f"Bản ghi trận đấu AOE\n"
-                    f"Người chơi/Máy: {player_name}\n"
-                    f"Ngày thi đấu: {date_str}\n"
-                    f"Thời lượng: {s_info.get('duration_minutes')} phút\n\n"
-                    f"Tự động upload bởi AOE Livestream System."
+                    f"😂 Khi coder, sale, marketing cùng đánh AOE...\n\n"
+                    f"Trận đấu này hội tụ đủ mọi cấp độ:\n"
+                    f"- Người mới: đang học xây BE 🏠\n"
+                    f"- Người trung bình: lên đời quên xin dân 🤣\n"
+                    f"- Người pro: cân team, gánh kèo 🔥\n\n"
+                    f"📌 Thông tin trận:\n"
+                    f"- Players: {player_name}\n"
+                    f"- Date: {date_str}\n"
+                    f"- Duration: {duration_str}\n\n"
+                    f"🎯 Đây không chỉ là game – mà là nơi lưu lại những khoảnh khắc vui vẻ của team BestPrice.\n\n"
+                    f"🌐 Website công ty: https://www.bestprice.vn/  \n"
+                    f"🎮 Giải đấu AOE: https://aoe.bpg.vn/\n\n"
+                    f"👉 Xem để giải trí, nhưng cẩn thận… bạn có thể thấy chính mình trong đó 😎\n\n"
+                    f"#AOEFunny #CompanyLife #BestPrice #GamingCulture"
                 )
                 
                 print(f"    - Đang upload lên YouTube (Public)...", flush=True)
@@ -469,9 +559,12 @@ def do_youtube_sync(specific_date=None):
                     )
                     
                     if video_id:
-                        s_info['youtube_url'] = f"https://www.youtube.com/watch?v={video_id}"
-                        s_info['youtube_id'] = video_id
-                        s_info['hls'] = None 
+                        if not is_test:
+                            s_info['youtube_url'] = f"https://www.youtube.com/watch?v={video_id}"
+                            s_info['youtube_id'] = video_id
+                            s_info['hls'] = None 
+                        else:
+                            print(f"    - [TEST MODE] Video uploaded: https://www.youtube.com/watch?v={video_id}", flush=True)
                         
                         # Add to playlist
                         if playlist_id:
